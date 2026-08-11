@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import SRWLEDVisuals
 import SRWLEDCore
 
 /// Главное окно: объёмная визуализация во всю площадь и панель управления справа.
@@ -23,7 +24,8 @@ struct MainWindow: View {
         ZStack {
             VolumetricVisualizer(bands: model.bands,
                                  peaks: model.peaks,
-                                 isRunning: model.isRunning)
+                                 isRunning: model.isRunning,
+                                 palette: model.palette)
                 .ignoresSafeArea()
 
             VStack {
@@ -272,6 +274,14 @@ struct MainWindow: View {
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Picker("", selection: $model.palette) {
+                ForEach(Palette.allCases) { palette in
+                    Text(palette.title).tag(palette)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+
             Toggle(model.localized(.spectrumInMenuBar), isOn: $model.showSpectrumInMenuBar)
                 .font(.system(size: 11))
             Toggle(model.localized(.originalBehaviour), isOn: $model.useOriginalBehaviour)

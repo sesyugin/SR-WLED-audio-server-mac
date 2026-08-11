@@ -18,8 +18,16 @@ let package = Package(
         // Приложение со значком в строке меню. Собирается в .app скриптом
         // scripts/build-app.sh — Xcode не нужен.
         .executableTarget(name: "SRWLEDMenuBar",
-                          dependencies: ["SRWLEDCore"],
+                          dependencies: ["SRWLEDCore", "SRWLEDVisuals"],
                           path: "Sources/SRWLEDMenuBar"),
+
+        // Визуализация: отдельная библиотека, чтобы её мог рисовать и рендер кадров.
+        .target(name: "SRWLEDVisuals", path: "Sources/SRWLEDVisuals"),
+
+        // Рендер кадров визуализации в PNG — только для работы над оформлением.
+        .executableTarget(name: "SRWLEDPreview",
+                          dependencies: ["SRWLEDVisuals"],
+                          path: "Sources/SRWLEDPreview"),
 
         // Отладочный спайк: проверка захвата системного звука.
         .executableTarget(name: "TapSpike", path: "Sources/TapSpike"),

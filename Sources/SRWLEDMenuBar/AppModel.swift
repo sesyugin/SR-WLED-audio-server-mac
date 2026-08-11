@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SRWLEDCore
+import SRWLEDVisuals
 
 /// Состояние сервера, которое видит человек.
 enum ServerState: Equatable {
@@ -71,6 +72,9 @@ final class AppModel: ObservableObject {
     @Published var showSpectrumInMenuBar: Bool {
         didSet { defaults.set(showSpectrumInMenuBar, forKey: Keys.spectrum) }
     }
+    @Published var palette: Palette {
+        didSet { defaults.set(palette.rawValue, forKey: Keys.palette) }
+    }
     @Published var language: Language {
         didSet {
             defaults.set(language.rawValue, forKey: Keys.language)
@@ -89,6 +93,7 @@ final class AppModel: ObservableObject {
         static let spectrum = "spectrumInMenuBar"
         static let launched = "hasLaunchedBefore"
         static let language = "language"
+        static let palette = "palette"
     }
 
     // MARK: Внутренности
@@ -136,6 +141,8 @@ final class AppModel: ObservableObject {
         useOriginalBehaviour = defaults.bool(forKey: Keys.original)
         showSpectrumInMenuBar = defaults.object(forKey: Keys.spectrum) as? Bool ?? true
         isFirstRun = !defaults.bool(forKey: Keys.launched)
+
+        palette = Palette(rawValue: defaults.string(forKey: Keys.palette) ?? "") ?? .amber
 
         // Язык: сохранённый выбор, иначе язык системы, иначе английский.
         let stored = defaults.string(forKey: Keys.language) ?? ""

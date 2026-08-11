@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import SRWLEDVisuals
 import SRWLEDCore
 
 struct MenuContent: View {
