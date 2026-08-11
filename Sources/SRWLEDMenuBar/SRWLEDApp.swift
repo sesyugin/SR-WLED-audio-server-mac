@@ -4,8 +4,15 @@ import SwiftUI
 /// Содержимое MenuBarExtra создаётся только при открытии меню, поэтому автозапуск
 /// вешаем на делегат приложения — иначе сервер поднимался бы лишь после первого клика.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Создаётся лениво в главном акторе: StatusItemController изолирован в нём,
+    /// а сам делегат — нет.
+    private var statusItem: StatusItemController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
+            let controller = StatusItemController()
+            controller.install(model: AppModel.shared)
+            statusItem = controller
             AppModel.shared.startAutomaticallyIfReady()
         }
 
@@ -22,9 +29,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Клик по значку в Dock при закрытом окне возвращает окно, а не создаёт пустоту.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !hasVisibleWindows {
+            NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
+        }
+        return true
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         // Гасим ленту перед выходом, иначе эквалайзер застынет в последнем виде.
         MainActor.assumeIsolated {
+            statusItem?.remove()
             AppModel.shared.stop()
         }
     }
@@ -36,53 +52,16 @@ struct SRWLEDApp: App {
     @StateObject private var model = AppModel.shared
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuContent(model: model)
-        } label: {
-            MenuBarLabel(model: model)
+        // Главное окно: значок в Dock, крупная визуализация, все настройки.
+        Window("SR-WLED", id: "main") {
+            MainWindow(model: model)
         }
-        .menuBarExtraStyle(.window)
-    }
-}
-
-/// Значок в строке меню. При включённой опции показывает живой спектр,
-/// иначе — символ состояния.
-struct MenuBarLabel: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        if model.showSpectrumInMenuBar && model.isRunning {
-            SpectrumStrip(bands: model.bands, barCount: 16)
-                .frame(width: 34, height: 16)
-        } else {
-            Image(systemName: model.state.symbol)
+        .defaultSize(width: 900, height: 560)
+        .commands {
+            CommandGroup(replacing: .newItem) {}
         }
-    }
-}
 
-/// Полоски спектра. Рисуются через Canvas: 16 прямоугольников дешевле,
-/// чем столько же вью в стеке, а перерисовка идёт 10 раз в секунду.
-struct SpectrumStrip: View {
-    let bands: [Float]
-    var barCount: Int = 16
-
-    var body: some View {
-        Canvas { context, size in
-            guard barCount > 0 else { return }
-            let gap: CGFloat = 1
-            let barWidth = (size.width - gap * CGFloat(barCount - 1)) / CGFloat(barCount)
-            guard barWidth > 0 else { return }
-
-            for index in 0..<barCount {
-                let value = index < bands.count ? CGFloat(bands[index]) : 0
-                let height = max(1, value * size.height)
-                let rect = CGRect(x: CGFloat(index) * (barWidth + gap),
-                                  y: size.height - height,
-                                  width: barWidth,
-                                  height: height)
-                context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 3),
-                             with: .color(.primary))
-            }
-        }
+        // Значок в строке меню делает StatusItemController на AppKit:
+        // сцена MenuBarExtra в этом приложении элемент не создаёт вовсе.
     }
 }

@@ -44,9 +44,6 @@ cat > "$DEST/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key>
     <string>14.2</string>
 
-    <!-- Живёт только в строке меню: ни значка в Dock, ни окна при запуске. -->
-    <key>LSUIElement</key>
-    <true/>
 
     <!-- Без этой строки macOS не покажет запрос и захват вернёт одни нули. -->
     <key>NSAudioCaptureUsageDescription</key>

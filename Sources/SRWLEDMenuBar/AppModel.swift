@@ -38,10 +38,17 @@ final class AppModel: ObservableObject {
     /// Один экземпляр на приложение: к нему обращается и интерфейс, и делегат.
     static let shared = AppModel()
 
+    /// Длина истории для водопада: 200 кадров по 0.1 с — двадцать секунд.
+    static let historyLength = 200
+
     // MARK: Наблюдаемое состояние
 
     @Published private(set) var state: ServerState = .stopped
     @Published private(set) var bands = [Float](repeating: 0, count: 16)
+    /// Пиковые отметки полос — медленно опускаются, показывают недавний максимум.
+    @Published private(set) var peaks = [Float](repeating: 0, count: 16)
+    /// История полос для водопада. Кольцевой буфер на 20 секунд при обновлении 10 раз в секунду.
+    @Published private(set) var history = [[Float]]()
     @Published private(set) var packetsPerSecond = 0
     @Published private(set) var totalPackets = 0
     @Published private(set) var sourceDescription = ""
@@ -64,6 +71,12 @@ final class AppModel: ObservableObject {
     @Published var showSpectrumInMenuBar: Bool {
         didSet { defaults.set(showSpectrumInMenuBar, forKey: Keys.spectrum) }
     }
+    @Published var language: Language {
+        didSet {
+            defaults.set(language.rawValue, forKey: Keys.language)
+            L10n.current = language
+        }
+    }
 
     /// Первый запуск показывает объяснение и не лезет за разрешениями сам.
     @Published private(set) var isFirstRun: Bool
@@ -75,11 +88,16 @@ final class AppModel: ObservableObject {
         static let original = "originalBehaviour"
         static let spectrum = "spectrumInMenuBar"
         static let launched = "hasLaunchedBefore"
+        static let language = "language"
     }
 
     // MARK: Внутренности
 
     /// Последняя причина пересборки захвата — показывается в меню.
+    /// Найденные в сети ленты вместе с их состоянием.
+    @Published private(set) var discoveredDevices: [DiscoveredDevice] = []
+    @Published private(set) var isSearching = false
+
     @Published private(set) var lastRestartReason: String?
     @Published private(set) var diagnostics = Diagnostics(lines: [])
     @Published var launchAtLogin: Bool = LoginItem.state.isOn {
@@ -91,6 +109,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var loginItemProblem: String? = LoginItem.state.explanation
 
     private let defaults = UserDefaults.standard
+    private let discovery = DeviceDiscovery()
+    private var statusPollTimer: Timer?
     private var session: CaptureSession?
     private var sender: PacketSender?
     private var senderThread: Thread?
@@ -116,6 +136,83 @@ final class AppModel: ObservableObject {
         useOriginalBehaviour = defaults.bool(forKey: Keys.original)
         showSpectrumInMenuBar = defaults.object(forKey: Keys.spectrum) as? Bool ?? true
         isFirstRun = !defaults.bool(forKey: Keys.launched)
+
+        // Язык: сохранённый выбор, иначе язык системы, иначе английский.
+        let stored = defaults.string(forKey: Keys.language) ?? ""
+        language = Language(rawValue: stored) ?? Language.systemDefault
+        L10n.current = language
+    }
+
+    /// Короткий доступ к переводу с текущим языком.
+    func localized(_ key: S) -> String { L10n.string(key, language) }
+
+    /// Ключ строки состояния — чтобы окно не знало про регистр состояний.
+    var stateKey: S {
+        switch state {
+        case .stopped: return .stopped
+        case .playing: return .playing
+        case .silent: return .silent
+        case .noSignal: return .noSignal
+        case .failed: return .noSignal
+        }
+    }
+
+    // MARK: Поиск лент
+
+    /// Запускает поиск лент в сети и периодический опрос их состояния.
+    func startDiscovery() {
+        guard !isSearching else { return }
+        isSearching = true
+
+        discovery.onUpdate = { [weak self] devices in
+            Task { @MainActor in
+                self?.discoveredDevices = devices
+                self?.refreshDeviceStatuses()
+            }
+        }
+        discovery.start()
+
+        // Состояние лент опрашиваем раз в 5 секунд: чаще незачем, а реже —
+        // и «светофор доставки» перестаёт быть живым.
+        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshDeviceStatuses() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        statusPollTimer = timer
+    }
+
+    func stopDiscovery() {
+        discovery.stop()
+        statusPollTimer?.invalidate()
+        statusPollTimer = nil
+        isSearching = false
+    }
+
+    func refreshDeviceStatuses() {
+        for device in discovery.devices {
+            discovery.refreshStatus(of: device) { [weak self] _ in
+                Task { @MainActor in
+                    self?.discoveredDevices = self?.discovery.devices ?? []
+                }
+            }
+        }
+    }
+
+    /// Добавляет адрес вручную — для лент, у которых выключен mDNS.
+    func addDeviceManually(_ host: String) {
+        let trimmed = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        discovery.addManual(host: trimmed)
+        discoveredDevices = discovery.devices
+        refreshDeviceStatuses()
+    }
+
+    /// Подставляет найденные адреса в поле отправки.
+    func useDiscoveredDevices() {
+        let hosts = discoveredDevices.map(\.host)
+        guard !hosts.isEmpty else { return }
+        targets = hosts.joined(separator: ", ")
+        sendMode = .targetIPList
     }
 
     /// Вызывается при появлении интерфейса. На первом запуске ничего не трогаем:
@@ -246,6 +343,8 @@ final class AppModel: ObservableObject {
         uiTimer = nil
 
         bands = [Float](repeating: 0, count: 16)
+        peaks = [Float](repeating: 0, count: 16)
+        history.removeAll()
         packetsPerSecond = 0
         state = .stopped
     }
@@ -299,6 +398,16 @@ final class AppModel: ObservableObject {
         guard let session, let sender, let pipeline = session.pipeline else { return }
 
         bands = pipeline.currentBands()
+
+        // Пиковые отметки: мгновенно вверх, медленно вниз — глазу так понятнее,
+        // где на самом деле был максимум.
+        for i in bands.indices where i < peaks.count {
+            peaks[i] = bands[i] > peaks[i] ? bands[i] : max(bands[i], peaks[i] - 0.02)
+        }
+
+        history.append(bands)
+        if history.count > Self.historyLength { history.removeFirst() }
+
         let sent = sender.packetsSent
         packetsPerSecond = max(0, (sent - lastPacketCount) * 10)
         lastPacketCount = sent

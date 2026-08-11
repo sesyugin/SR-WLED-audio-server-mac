@@ -11,5 +11,7 @@ runPipelineTests(runner)
 runCorrectnessTests(runner)
 runDynamicsTests(runner)
 runStoreTests(runner)
+runDiscoveryTests(runner)
+runLocalizationTests(runner)
 
 exit(runner.summarize())
