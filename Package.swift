@@ -15,6 +15,12 @@ let package = Package(
         // Консольный сервер: захват звука + отправка на ленты.
         .executableTarget(name: "srwled", dependencies: ["SRWLEDCore"], path: "Sources/srwled"),
 
+        // Приложение со значком в строке меню. Собирается в .app скриптом
+        // scripts/build-app.sh — Xcode не нужен.
+        .executableTarget(name: "SRWLEDMenuBar",
+                          dependencies: ["SRWLEDCore"],
+                          path: "Sources/SRWLEDMenuBar"),
+
         // Отладочный спайк: проверка захвата системного звука.
         .executableTarget(name: "TapSpike", path: "Sources/TapSpike"),
 
