@@ -8,6 +8,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             AppModel.shared.startAutomaticallyIfReady()
         }
+
+        // После сна аудиоустройства нередко возвращаются с другими параметрами,
+        // а уведомления CoreAudio об этом приходят не всегда — пересобираем захват сами.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                AppModel.shared.handleWake()
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

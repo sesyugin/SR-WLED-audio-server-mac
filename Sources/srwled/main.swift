@@ -47,6 +47,9 @@ struct Options {
     var settings = Settings()
     var seconds: Double = 0          // 0 — до Ctrl-C
     var quiet = false
+    /// Через сколько секунд принудительно пересобрать захват — для проверки
+    /// того, что перезапуск не рвёт поток и не сбивает счётчик кадров.
+    var restartAfter: Double = 0
 }
 
 // MARK: - Разбор аргументов
@@ -66,6 +69,7 @@ func printUsage() {
       --port <номер>       порт (по умолчанию 11988)
       --seconds <N>        работать N секунд и выйти (по умолчанию до Ctrl-C)
       --quiet              не печатать индикатор уровня
+      --restart-after <N>  через N секунд пересобрать захват (проверка перезапуска)
       --help               эта справка
 
     Сравнение обработки:
@@ -140,6 +144,12 @@ func parseOptions() -> Options?? {
             default: print("--window принимает hann или flattop"); return nil
             }
 
+        case "--restart-after":
+            guard let text = value(), let seconds = Double(text) else {
+                print("--restart-after требует число"); return nil
+            }
+            options.restartAfter = seconds
+
         case "--quiet":
             options.quiet = true
 
@@ -174,13 +184,27 @@ func runServer() -> Int32 {
     }
 
     let sender = PacketSender(settings: options.settings, transport: transport)
-    let box = PipelineBox()
-    let tap = SystemAudioTap()
+    let frameReady = DispatchSemaphore(value: 0)
+
+    // Захват пересобирает себя сам при смене устройства вывода, частоты или после сна.
+    // Отправитель при этом остаётся тем же: он владеет счётчиком кадров, а тот обязан
+    // быть строго монотонным, иначе WLED-MM отбросит пакеты.
+    let session = CaptureSession(
+        settings: options.settings,
+        onFrameReady: { frameReady.signal() },
+        onEvent: { event in
+            switch event {
+            case .restarted(let reason):
+                print("\n[захват пересобран: \(reason)]")
+            case .failed(let message):
+                print("\n[ошибка захвата: \(message)]")
+            case .started, .stopped:
+                break
+            }
+        })
 
     do {
-        try tap.start { samples, channels in
-            box.pipeline?.process(interleaved: samples, channels: channels)
-        }
+        try session.start()
     } catch {
         print("""
         Не удалось запустить захват системного звука: \(error)
@@ -191,16 +215,7 @@ func runServer() -> Int32 {
         return 1
     }
 
-    guard let format = tap.format,
-          let pipeline = AudioPipeline(settings: options.settings, sampleRate: format.sampleRate)
-    else {
-        print("Не удалось подготовить обработку звука.")
-        try? tap.stop()
-        return 1
-    }
-    box.set(pipeline)
-
-    print("Источник звука: \(tap.outputDeviceName), \(Int(format.sampleRate)) Гц, \(format.channels) кан.")
+    print("Источник звука: \(session.deviceName), \(Int(session.sampleRate)) Гц, \(session.channels) кан.")
     print("Отправка: \(endpoints.map(\.description).joined(separator: ", "))")
     print("Обработка: полосы \(options.settings.bandLayout.rawValue), окно "
           + "\(options.settings.window.rawValue), уровень \(options.settings.loudness.rawValue)")
@@ -212,9 +227,7 @@ func runServer() -> Int32 {
     // таймер Dispatch и аудиоустройство тактируются разными часами, бьются друг о друга,
     // и ограничитель периодически срезает кадр. На живом прогоне это давало 40 пакетов
     // в секунду вместо 47. Семафор привязывает отправку ровно к готовности кадра.
-    let frameReady = DispatchSemaphore(value: 0)
     let stopping = OnceFlag()
-    pipeline.onPacketUpdated = { frameReady.signal() }
 
     let senderFinished = DispatchSemaphore(value: 0)
     let senderThread = Thread {
@@ -222,7 +235,7 @@ func runServer() -> Int32 {
             // Таймаут нужен, чтобы keep-alive шёл даже если звук исчез совсем
             // (например, устройство вывода пропало).
             _ = frameReady.wait(timeout: .now() + .milliseconds(100))
-            guard !stopping.isSet, let pipeline = box.pipeline else { continue }
+            guard !stopping.isSet, let pipeline = session.pipeline else { continue }
             sender.send(pipeline.currentPacket())
             sender.sendKeepAliveIfNeeded()
         }
@@ -232,12 +245,15 @@ func runServer() -> Int32 {
     senderThread.qualityOfService = .userInteractive
     senderThread.start()
 
-    let uiTimer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "srwled.ui"))
+    // Источник создаётся только когда он действительно нужен: неразрезюмированный
+    // DispatchSource при уничтожении роняет процесс по SIGTRAP.
+    var uiTimer: DispatchSourceTimer?
     if !options.quiet {
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "srwled.ui"))
         let blocks = [" ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
-        uiTimer.schedule(deadline: .now() + 0.3, repeating: 0.1)
-        uiTimer.setEventHandler {
-            guard let pipeline = box.pipeline else { return }
+        timer.schedule(deadline: .now() + 0.3, repeating: 0.1)
+        timer.setEventHandler {
+            guard let pipeline = session.pipeline else { return }
             let bar = pipeline.currentBands().map { value -> String in
                 let index = min(blocks.count - 1, max(0, Int(value * Float(blocks.count - 1) + 0.5)))
                 return blocks[index]
@@ -247,7 +263,8 @@ func runServer() -> Int32 {
             print("\r[\(bar)] \(status)  пакетов: \(sender.packetsSent)\(failure)   ", terminator: "")
             fflush(stdout)
         }
-        uiTimer.resume()
+        timer.resume()
+        uiTimer = timer
     }
 
     // Завершение по Ctrl-C или по таймеру.
@@ -263,6 +280,12 @@ func runServer() -> Int32 {
         source.resume()
     }
 
+    if options.restartAfter > 0 {
+        DispatchQueue.global().asyncAfter(deadline: .now() + options.restartAfter) {
+            session.restart(reason: "проверка перезапуска")
+        }
+    }
+
     if options.seconds > 0 {
         DispatchQueue.global().asyncAfter(deadline: .now() + options.seconds) {
             if once.fire() { done.signal() }
@@ -273,7 +296,7 @@ func runServer() -> Int32 {
 
     _ = stopping.fire()
     frameReady.signal()              // разбудить поток отправки, чтобы он вышел
-    if !options.quiet { uiTimer.cancel() }
+    uiTimer?.cancel()
     // Дожидаемся именно завершения потока, а не фиксированной паузы: пауза создавала
     // разрыв в потоке пакетов на ровном месте.
     _ = senderFinished.wait(timeout: .now() + .milliseconds(300))
@@ -282,7 +305,7 @@ func runServer() -> Int32 {
     print("\n\nГашение ленты…")
     sender.fadeOut { seconds in Thread.sleep(forTimeInterval: seconds) }
 
-    try? tap.stop()
+    session.stop()
     print("Отправлено пакетов: \(sender.packetsSent). Захват остановлен, устройства освобождены.")
     return 0
 }

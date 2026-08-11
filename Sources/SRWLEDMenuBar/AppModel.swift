@@ -79,11 +79,22 @@ final class AppModel: ObservableObject {
 
     // MARK: Внутренности
 
+    /// Последняя причина пересборки захвата — показывается в меню.
+    @Published private(set) var lastRestartReason: String?
+    @Published private(set) var diagnostics = Diagnostics(lines: [])
+    @Published var launchAtLogin: Bool = LoginItem.state.isOn {
+        didSet {
+            guard launchAtLogin != oldValue else { return }
+            loginItemProblem = LoginItem.set(launchAtLogin) ?? LoginItem.state.explanation
+        }
+    }
+    @Published private(set) var loginItemProblem: String? = LoginItem.state.explanation
+
     private let defaults = UserDefaults.standard
-    private var tap: SystemAudioTap?
-    private var pipeline: AudioPipeline?
+    private var session: CaptureSession?
     private var sender: PacketSender?
     private var senderThread: Thread?
+    private var silenceStartedAt: Date?
     private let frameReady = DispatchSemaphore(value: 0)
     /// Флаг остановки, который читает поток отправки. Отдельная ячейка, а не свойство
     /// модели, — модель живёт в главном акторе, поток к нему не относится.
@@ -155,49 +166,44 @@ final class AppModel: ObservableObject {
         }
 
         let sender = PacketSender(settings: settings, transport: transport)
-        let tap = SystemAudioTap()
-        let box = PipelineBox()
+        let ready = frameReady
+
+        // Захват умеет пересобирать себя при смене наушников, частоты или устройства.
+        // Отправитель при этом остаётся тем же — он владеет счётчиком кадров,
+        // а тот обязан быть строго монотонным, иначе WLED-MM отбросит пакеты.
+        let session = CaptureSession(
+            settings: settings,
+            onFrameReady: { ready.signal() },
+            onEvent: { [weak self] event in
+                Task { @MainActor in self?.handle(event) }
+            })
 
         do {
-            try tap.start { samples, channels in
-                box.pipeline?.process(interleaved: samples, channels: channels)
-            }
+            try session.start()
         } catch {
             state = .failed("Не удалось прочитать системный звук")
             return
         }
 
-        guard let format = tap.format,
-              let pipeline = AudioPipeline(settings: settings, sampleRate: format.sampleRate)
-        else {
-            try? tap.stop()
-            state = .failed("Не удалось подготовить обработку")
-            return
-        }
-
-        box.set(pipeline)
-        pipeline.onPacketUpdated = { [frameReady] in frameReady.signal() }
-
-        self.tap = tap
-        self.pipeline = pipeline
+        self.session = session
         self.sender = sender
         self._stopping.value = false
         self.quietFrames = 0
+        self.silenceStartedAt = nil
 
-        sourceDescription = "\(tap.outputDeviceName) · \(Int(format.sampleRate)) Гц"
+        sourceDescription = "\(session.deviceName) · \(Int(session.sampleRate)) Гц"
         destinationDescription = endpoints.map(\.description).joined(separator: ", ")
 
         // Отправка в отдельном потоке, разбуженном самим анализом: в аудиоколбэке
         // системных вызовов быть не должно, а независимый таймер бьётся с часами
         // аудиоустройства и теряет кадры.
         // Замыкание намеренно не захватывает self: класс изолирован в главном акторе,
-        // а этот поток к нему не принадлежит. Берём только то, что потокобезопасно само по себе.
+        // а этот поток к нему не принадлежит.
         let stopFlag = _stopping
-        let ready = frameReady
         let thread = Thread {
             while !stopFlag.value {
                 _ = ready.wait(timeout: .now() + .milliseconds(100))
-                guard !stopFlag.value, let pipeline = box.pipeline else { continue }
+                guard !stopFlag.value, let pipeline = session.pipeline else { continue }
                 sender.send(pipeline.currentPacket())
                 sender.sendKeepAliveIfNeeded()
             }
@@ -225,11 +231,11 @@ final class AppModel: ObservableObject {
         // без этого эквалайзер застынет в последнем виде до перезагрузки ленты.
         sender?.fadeOut { seconds in Thread.sleep(forTimeInterval: seconds) }
 
-        try? tap?.stop()
-        tap = nil
-        pipeline = nil
+        session?.stop()
+        session = nil
         sender = nil
         senderThread = nil
+        lastRestartReason = nil
 
         if let activityToken {
             ProcessInfo.processInfo.endActivity(activityToken)
@@ -249,6 +255,13 @@ final class AppModel: ObservableObject {
         start()
     }
 
+    /// Пробуждение после сна: пересобираем захват, но отправитель не трогаем —
+    /// счётчик кадров обязан остаться монотонным.
+    func handleWake() {
+        guard isRunning else { return }
+        session?.restart(reason: "пробуждение после сна")
+    }
+
     // MARK: Обновление интерфейса
 
     private func startUITimer() {
@@ -262,8 +275,28 @@ final class AppModel: ObservableObject {
         uiTimer = timer
     }
 
+    /// События захвата: пересборка при смене устройства, ошибки.
+    private func handle(_ event: CaptureSession.Event) {
+        switch event {
+        case .started(let sampleRate, _, let device):
+            sourceDescription = "\(device) · \(Int(sampleRate)) Гц"
+
+        case .restarted(let reason):
+            sourceDescription = "\(session?.deviceName ?? "") · \(Int(session?.sampleRate ?? 0)) Гц"
+            lastRestartReason = reason
+            silenceStartedAt = nil
+            quietFrames = 0
+
+        case .failed(let message):
+            state = .failed(message)
+
+        case .stopped:
+            break
+        }
+    }
+
     private func refresh() {
-        guard let pipeline, let sender else { return }
+        guard let session, let sender, let pipeline = session.pipeline else { return }
 
         bands = pipeline.currentBands()
         let sent = sender.packetsSent
@@ -271,21 +304,32 @@ final class AppModel: ObservableObject {
         lastPacketCount = sent
         totalPackets = sent
 
-        if let failure = sender.lastError {
-            state = .failed(failure)
-            return
-        }
-
         if pipeline.isSilent {
+            if silenceStartedAt == nil { silenceStartedAt = Date() }
             quietFrames += 1
             // Десять секунд идеальной цифровой тишины при работающем захвате —
             // почти наверняка не выдано разрешение: macOS в этом случае не отдаёт
             // ни ошибки, ни события, просто кладёт в буфер нули.
             state = quietFrames > 100 ? .noSignal : .silent
         } else {
+            silenceStartedAt = nil
             quietFrames = 0
             state = .playing
         }
+
+        if let failure = sender.lastError {
+            state = .failed(failure)
+        }
+
+        diagnostics = Diagnostics.make(
+            captureRunning: true,
+            digitalSilenceSeconds: silenceStartedAt.map { Date().timeIntervalSince($0) } ?? 0,
+            deviceName: session.deviceName,
+            sampleRate: session.sampleRate,
+            endpoints: sender.endpoints,
+            packetsPerSecond: packetsPerSecond,
+            networkError: sender.lastError,
+            bandsAlive: bands.contains { $0 > 0 })
     }
 }
 

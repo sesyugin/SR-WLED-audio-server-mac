@@ -5,6 +5,7 @@ import SRWLEDCore
 struct MenuContent: View {
     @ObservedObject var model: AppModel
     @State private var showingSettings = false
+    @State private var showingDiagnostics = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -23,6 +24,13 @@ struct MenuContent: View {
             }
             if case .failed(let message) = model.state {
                 failureHint(message)
+            }
+
+            if let reason = model.lastRestartReason {
+                Label("Захват пересобран: \(reason)", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Divider()
@@ -164,9 +172,72 @@ struct MenuContent: View {
                 .keyboardShortcut("q")
             }
 
+            HStack {
+                Button(showingDiagnostics ? "Скрыть диагностику" : "Диагностика") {
+                    withAnimation(.easeInOut(duration: 0.15)) { showingDiagnostics.toggle() }
+                }
+                .font(.system(size: 11))
+                Spacer()
+            }
+
+            if showingDiagnostics {
+                DiagnosticsPane(model: model)
+            }
+
             if showingSettings {
                 SettingsPane(model: model)
             }
+        }
+    }
+}
+
+// MARK: - Диагностика
+
+struct DiagnosticsPane: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ForEach(Array(model.diagnostics.lines.enumerated()), id: \.offset) { _, line in
+                HStack(alignment: .top, spacing: 7) {
+                    Circle()
+                        .fill(color(for: line.verdict))
+                        .frame(width: 7, height: 7)
+                        .padding(.top, 4)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(line.title)
+                            .font(.system(size: 11, weight: .medium))
+                        Text(line.detail)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !line.advice.isEmpty {
+                            Text(line.advice)
+                                .font(.system(size: 10))
+                                .foregroundStyle(color(for: line.verdict))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            Button("Скопировать диагностику") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(model.diagnostics.asText(), forType: .string)
+            }
+            .font(.system(size: 11))
+        }
+        .padding(9)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+    }
+
+    private func color(for verdict: Diagnostics.Verdict) -> Color {
+        switch verdict {
+        case .ok: return .green
+        case .warning: return .orange
+        case .failure: return .red
+        case .unknown: return .secondary
         }
     }
 }
@@ -206,6 +277,15 @@ struct SettingsPane: View {
 
             Toggle("Спектр в строке меню", isOn: $model.showSpectrumInMenuBar)
                 .font(.system(size: 11))
+
+            Toggle("Запускать при входе в систему", isOn: $model.launchAtLogin)
+                .font(.system(size: 11))
+            if let problem = model.loginItemProblem {
+                Text(problem)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Toggle("Обработка как в оригинале", isOn: $model.useOriginalBehaviour)
                 .font(.system(size: 11))

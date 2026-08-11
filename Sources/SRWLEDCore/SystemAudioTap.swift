@@ -39,6 +39,8 @@ public final class SystemAudioTap: @unchecked Sendable {
 
     public private(set) var format: CaptureFormat?
     public private(set) var outputDeviceName = ""
+    /// Устройство вывода, на котором построен захват. Нужно наблюдателю за сменой частоты.
+    public private(set) var outputDeviceID = AudioObjectID(kAudioObjectUnknown)
 
     public init() {}
 
@@ -64,6 +66,7 @@ public final class SystemAudioTap: @unchecked Sendable {
         outputDeviceName = (try? readString(outputDeviceID,
                                             Self.address(kAudioObjectPropertyName),
                                             "имя устройства вывода")) ?? outputUID
+        self.outputDeviceID = outputDeviceID
 
         // 2. Глобальный стерео-tap, не глушащий звук в колонках.
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
