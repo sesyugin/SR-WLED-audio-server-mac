@@ -216,6 +216,7 @@ func runServer() -> Int32 {
     let stopping = OnceFlag()
     pipeline.onPacketUpdated = { frameReady.signal() }
 
+    let senderFinished = DispatchSemaphore(value: 0)
     let senderThread = Thread {
         while !stopping.isSet {
             // Таймаут нужен, чтобы keep-alive шёл даже если звук исчез совсем
@@ -225,6 +226,7 @@ func runServer() -> Int32 {
             sender.send(pipeline.currentPacket())
             sender.sendKeepAliveIfNeeded()
         }
+        senderFinished.signal()
     }
     senderThread.name = "srwled.sender"
     senderThread.qualityOfService = .userInteractive
@@ -272,7 +274,9 @@ func runServer() -> Int32 {
     _ = stopping.fire()
     frameReady.signal()              // разбудить поток отправки, чтобы он вышел
     if !options.quiet { uiTimer.cancel() }
-    Thread.sleep(forTimeInterval: 0.15)
+    // Дожидаемся именно завершения потока, а не фиксированной паузы: пауза создавала
+    // разрыв в потоке пакетов на ровном месте.
+    _ = senderFinished.wait(timeout: .now() + .milliseconds(300))
 
     // Гасим ленту, а не бросаем её в последнем кадре: ни ваниль, ни MM полосы сами не гасят.
     print("\n\nГашение ленты…")

@@ -16,6 +16,10 @@ public final class Bucketizer {
         public var dataCount: Int = 0
         /// Полоса уже полученных интерполяцией соседей — в неё не попал ни один бин БПФ.
         public var interpolated: Bool = false
+
+        public init(value: Float = 0) {
+            self.value = value
+        }
     }
 
     /// Границы 16 полос, зашитые в прошивку WLED (`audio_reactive.cpp`, `fftCalc[0..15]`).
@@ -39,6 +43,7 @@ public final class Bucketizer {
     private let freqPoints: [Float]
     private let scale: Scale
     private let normalization: Normalization
+    private let aggregation: BandAggregation
     /// Множитель аналитической нормировки: пик синуса полной шкалы даёт ровно 1.0.
     private let analyticScale: Float
 
@@ -46,8 +51,10 @@ public final class Bucketizer {
     public init(edges: [Float],
                 valueScale: Scale,
                 normalization: Normalization,
+                aggregation: BandAggregation = .energy,
                 fftSize: Int)
     {
+        self.aggregation = aggregation
         precondition(edges.count >= 2, "нужно минимум две границы полос")
 
         self.scale = valueScale
@@ -74,6 +81,7 @@ public final class Bucketizer {
                             logFreqScale: Bool,
                             valueScale: Scale,
                             normalization: Normalization = .originalConstants,
+                            aggregation: BandAggregation = .maximum,
                             fftSize: Int = 2048)
     {
         self.init(edges: Self.freqBands(freqMin: freqMin,
@@ -82,6 +90,7 @@ public final class Bucketizer {
                                         count: bucketCount),
                   valueScale: valueScale,
                   normalization: normalization,
+                  aggregation: aggregation,
                   fftSize: fftSize)
     }
 
@@ -159,13 +168,28 @@ public final class Bucketizer {
                 buckets[i].interpolated = true
                 buckets[i].dataCount = 0
             } else {
-                var maxValue: Float = 0
-                for idx in range {
-                    maxValue = max(maxValue, scaled(fft.magnitudes[idx]))
-                }
                 buckets[i].interpolated = false
-                buckets[i].value = maxValue
                 buckets[i].dataCount = range.count
+
+                switch aggregation {
+                case .energy:
+                    // Корень из суммы квадратов: энергия всей полосы. Для одиночного тона
+                    // совпадает с максимумом, а на шуме растёт с шириной полосы —
+                    // ровно так, чтобы розовый шум лёг ровно по логарифмической сетке.
+                    var sumOfSquares: Float = 0
+                    for idx in range {
+                        let magnitude = fft.magnitudes[idx]
+                        sumOfSquares += magnitude * magnitude
+                    }
+                    buckets[i].value = scaled(sumOfSquares.squareRoot())
+
+                case .maximum:
+                    var maxValue: Float = 0
+                    for idx in range {
+                        maxValue = max(maxValue, scaled(fft.magnitudes[idx]))
+                    }
+                    buckets[i].value = maxValue
+                }
             }
         }
 

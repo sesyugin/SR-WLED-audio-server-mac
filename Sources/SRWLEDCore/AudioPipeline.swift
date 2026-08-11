@@ -11,7 +11,6 @@ import Foundation
 public final class AudioPipeline: @unchecked Sendable {
     /// Размер окна БПФ. Разрешение по частоте — вдвое меньше.
     public static let frameSize = 2048
-    public static let frameSlide = 1024
 
     private let settings: Settings
     private let accumulator: SampleAccumulator
@@ -19,6 +18,7 @@ public final class AudioPipeline: @unchecked Sendable {
     private let beatDetector: BeatDetector
     private let bucketizer: Bucketizer
     private let gainControl: GainControl
+    private let smoother: BandSmoother?
 
     private var monoBuffer = [Float]()
     private let lock = NSLock()
@@ -46,17 +46,22 @@ public final class AudioPipeline: @unchecked Sendable {
                                      kind: settings.window) else {
             return nil
         }
-        self.framesPerSecond = Float(sampleRate / Double(Self.frameSlide))
+        let slide = max(1, min(settings.frameSlide, Self.frameSize))
+        self.framesPerSecond = Float(sampleRate / Double(slide))
         self.settings = settings
         self.fft = fft
-        self.accumulator = SampleAccumulator(frameSize: Self.frameSize, slide: Self.frameSlide)
-        self.beatDetector = BeatDetector()
+        self.accumulator = SampleAccumulator(frameSize: Self.frameSize, slide: slide)
+
+        let fps = Float(sampleRate / Double(slide))
+        self.beatDetector = BeatDetector(mode: settings.beatLatch ? .spectralFlux : .originalAverage,
+                                         framesPerSecond: fps)
 
         switch settings.bandLayout {
         case .wled:
             self.bucketizer = Bucketizer(edges: Bucketizer.wledBandEdges,
                                          valueScale: settings.fftValueScale,
                                          normalization: settings.normalization,
+                                         aggregation: settings.aggregation,
                                          fftSize: Self.frameSize)
         case .custom:
             self.bucketizer = Bucketizer(freqMin: settings.fftLow,
@@ -64,10 +69,24 @@ public final class AudioPipeline: @unchecked Sendable {
                                          logFreqScale: settings.fftFreqLogScale,
                                          valueScale: settings.fftValueScale,
                                          normalization: settings.normalization,
+                                         aggregation: settings.aggregation,
                                          fftSize: Self.frameSize)
         }
-        self.gainControl = GainControl(manual: settings.manualGain,
-                                       manualSpanReference: settings.manualGainReference)
+
+        self.smoother = settings.bandSmoothing
+            ? BandSmoother(bandCount: 16,
+                           attackSeconds: settings.attackSeconds,
+                           releaseSeconds: settings.releaseSeconds,
+                           framesPerSecond: fps)
+            : nil
+
+        self.gainControl = GainControl(mode: settings.gainMode,
+                                       manual: settings.manualGain,
+                                       manualSpanReference: settings.manualGainReference,
+                                       floor: settings.gainFloor,
+                                       attackSeconds: settings.gainAttackSeconds,
+                                       releaseSeconds: settings.gainReleaseSeconds,
+                                       framesPerSecond: fps)
     }
 
     /// Снимок текущего пакета — потокобезопасно.
@@ -163,10 +182,13 @@ public final class AudioPipeline: @unchecked Sendable {
         }
         beatDetector.process(fft)
         bucketizer.process(fft)
-        gainControl.process(buckets: bucketizer.buckets)
+
+        // Сглаживание до АРУ: регулировка видит уже сглаженные пики и меньше дёргается.
+        var buckets = bucketizer.buckets
+        smoother?.apply(to: &buckets)
+        gainControl.process(buckets: buckets)
 
         // --- заполнение пакета ---
-        let buckets = bucketizer.buckets
         let span = gainControl.span
         let offset = gainControl.offset
 

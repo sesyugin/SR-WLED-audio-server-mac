@@ -27,6 +27,24 @@ public enum LoudnessMode: String, CaseIterable, Sendable {
     case spectralRatio
 }
 
+/// Как сворачивать бины спектра в одну полосу.
+public enum BandAggregation: String, CaseIterable, Sendable {
+    /// Корень из суммы квадратов — энергия полосы. На розовом шуме, у которого энергия
+    /// равна в каждой октаве, все 16 полос выравниваются.
+    case energy
+    /// Максимум по бинам — как в оригинале. Систематически задирает верхние полосы
+    /// просто потому, что они шире: в верхней сотня бинов, в нижней один.
+    case maximum
+}
+
+/// Поведение автоматической регулировки усиления.
+public enum GainMode: String, CaseIterable, Sendable {
+    /// Медленная опора плюс ограничитель: удар бочки не роняет остальную ленту.
+    case stable
+    /// Как в оригинале: опора прыгает за максимумом на 75% за кадр.
+    case original
+}
+
 /// Как приводить амплитуду спектра к диапазону 0…1.
 public enum Normalization: String, CaseIterable, Sendable {
     /// Аналитически: пик синуса полной шкалы равен 1.0 при любом размере окна
@@ -68,9 +86,40 @@ public struct Settings: Sendable {
     public var fftFreqLogScale: Bool = true
     public var fftValueScale: Bucketizer.Scale = .squareRoot
 
+    /// Как сворачивать бины в полосу.
+    public var aggregation: BandAggregation = .energy
+
+    /// Шаг анализа в отсчётах. 512 при 48 кГц даёт задержку около 21 мс вместо 32.
+    /// На частоту отправки не влияет — её ограничивает отправитель.
+    public var frameSlide: Int = 512
+
     // MARK: Уровень и динамика
 
     public var loudness: LoudnessMode = .rms
+
+    /// Сглаживание полос по времени. Без него на ровном звуке полосы дёргаются
+    /// от кадра к кадру и лента мерцает там, где звук не меняется.
+    public var bandSmoothing: Bool = true
+
+    /// Постоянная времени нарастания: быстро, чтобы удар не смазался.
+    public var attackSeconds: Float = 0.025
+
+    /// Постоянная времени спада: медленно, чтобы полосы не мигали.
+    public var releaseSeconds: Float = 0.250
+
+    public var gainMode: GainMode = .stable
+
+    /// Как быстро опора АРУ идёт вверх. Секунда выбрана намеренно: удар бочки длится
+    /// около 100 мс и почти не сдвигает опору — громкая полоса упирается в потолок,
+    /// а остальные не гаснут. На настоящую смену громкости композиции этого хватает.
+    public var gainAttackSeconds: Float = 1.0
+
+    /// Как быстро опора идёт вниз. Медленнее, чтобы усиление не «дышало» на паузах.
+    public var gainReleaseSeconds: Float = 2.0
+
+    /// Нижний предел опоры АРУ. Без него в паузе усиление раскручивается до упора
+    /// и фоновый шум выходит на полную яркость.
+    public var gainFloor: Float = 0.02
 
     /// Убирать постоянную составляющую перед анализом. Без этого смещение входа
     /// зажигает нижнюю полосу и перебивает музыку.
@@ -100,6 +149,10 @@ public struct Settings: Sendable {
         settings.removeDCOffset = false
         settings.beatLatch = false
         settings.squelch = 0.00001
+        settings.aggregation = .maximum
+        settings.bandSmoothing = false
+        settings.gainMode = .original
+        settings.frameSlide = 1024
         return settings
     }
 }

@@ -37,6 +37,11 @@ final class TestRunner {
         }
     }
 
+    /// Информационная строка: измеренное значение, которое полезно видеть в отчёте.
+    func note(_ message: String) {
+        print("    \u{1B}[2m· \(message)\u{1B}[0m")
+    }
+
     /// Проверка. При провале тест помечается упавшим, но прогон продолжается —
     /// так за один запуск видно все проблемы сразу.
     func expect(_ condition: Bool, _ message: @autoclosure () -> String,

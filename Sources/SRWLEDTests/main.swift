@@ -9,5 +9,6 @@ runPacketTests(runner)
 runPacketSenderTests(runner)
 runPipelineTests(runner)
 runCorrectnessTests(runner)
+runDynamicsTests(runner)
 
 exit(runner.summarize())
