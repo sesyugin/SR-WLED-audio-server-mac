@@ -8,5 +8,6 @@ let runner = TestRunner()
 runPacketTests(runner)
 runPacketSenderTests(runner)
 runPipelineTests(runner)
+runCorrectnessTests(runner)
 
 exit(runner.summarize())

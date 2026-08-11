@@ -24,6 +24,14 @@ public final class AudioPipeline: @unchecked Sendable {
     private let lock = NSLock()
     private var packet = AudioSyncPacket()
 
+    private let framesPerSecond: Float
+    /// Буфер для копии кадра со снятым постоянным смещением.
+    private var dcCorrected = [Float]()
+    /// Сглаженный уровень для поля sampleSmth.
+    private var smoothedLoudness: Float = 0
+    /// Предыдущее состояние детектора — для одиночного импульса удара.
+    private var beatWasDetected = false
+
     /// Последние значения полос — для индикатора в интерфейсе.
     private var latestBands = [Float](repeating: 0, count: 16)
 
@@ -33,17 +41,31 @@ public final class AudioPipeline: @unchecked Sendable {
     public private(set) var isSilent = false
 
     public init?(settings: Settings, sampleRate: Double) {
-        guard let fft = FFTProcessor(size: Self.frameSize, sampleRate: sampleRate) else {
+        guard let fft = FFTProcessor(size: Self.frameSize,
+                                     sampleRate: sampleRate,
+                                     kind: settings.window) else {
             return nil
         }
+        self.framesPerSecond = Float(sampleRate / Double(Self.frameSlide))
         self.settings = settings
         self.fft = fft
         self.accumulator = SampleAccumulator(frameSize: Self.frameSize, slide: Self.frameSlide)
         self.beatDetector = BeatDetector()
-        self.bucketizer = Bucketizer(freqMin: settings.fftLow,
-                                     freqMax: settings.fftHigh,
-                                     logFreqScale: settings.fftFreqLogScale,
-                                     valueScale: settings.fftValueScale)
+
+        switch settings.bandLayout {
+        case .wled:
+            self.bucketizer = Bucketizer(edges: Bucketizer.wledBandEdges,
+                                         valueScale: settings.fftValueScale,
+                                         normalization: settings.normalization,
+                                         fftSize: Self.frameSize)
+        case .custom:
+            self.bucketizer = Bucketizer(freqMin: settings.fftLow,
+                                         freqMax: settings.fftHigh,
+                                         logFreqScale: settings.fftFreqLogScale,
+                                         valueScale: settings.fftValueScale,
+                                         normalization: settings.normalization,
+                                         fftSize: Self.frameSize)
+        }
         self.gainControl = GainControl(manual: settings.manualGain,
                                        manualSpanReference: settings.manualGainReference)
     }
@@ -91,18 +113,34 @@ public final class AudioPipeline: @unchecked Sendable {
     }
 
     private func processFrame(_ frame: UnsafeBufferPointer<Float>) {
+        // --- постоянная составляющая ---
+        // Без вычитания среднего смещение входа зажигает нижнюю полосу и перебивает музыку.
+        var offsetToRemove: Float = 0
+        if settings.removeDCOffset {
+            var sum: Float = 0
+            for value in frame where value.isFinite { sum += value }
+            offsetToRemove = sum / Float(frame.count)
+        }
+
         // --- статистика по кадру ---
         var zeroCrossings = 0
         var maxAbs: Float = 0
-        var previous = frame[0]
+        var sumOfSquares: Double = 0
+        var previous = frame[0] - offsetToRemove
         maxAbs = abs(previous)
+        sumOfSquares = Double(previous) * Double(previous)
+
         for i in 1..<frame.count {
-            let value = frame[i]
+            let value = frame[i] - offsetToRemove
+            guard value.isFinite else { continue }
             if previous > 0 && value <= 0 { zeroCrossings += 1 }
             if previous < 0 && value >= 0 { zeroCrossings += 1 }
             maxAbs = max(maxAbs, abs(value))
+            sumOfSquares += Double(value) * Double(value)
             previous = value
         }
+
+        let rms = Float((sumOfSquares / Double(frame.count)).squareRoot())
 
         // --- тишина ---
         if maxAbs < settings.squelch {
@@ -111,7 +149,18 @@ public final class AudioPipeline: @unchecked Sendable {
         }
 
         // --- спектр ---
-        fft.process(frame)
+        if settings.removeDCOffset && offsetToRemove != 0 {
+            // Копируем со снятым смещением: исходный буфер принадлежит накопителю.
+            if dcCorrected.count < frame.count {
+                dcCorrected = [Float](repeating: 0, count: frame.count)
+            }
+            for i in 0..<frame.count { dcCorrected[i] = frame[i] - offsetToRemove }
+            dcCorrected.withUnsafeBufferPointer { buffer in
+                fft.process(UnsafeBufferPointer(rebasing: buffer[0..<frame.count]))
+            }
+        } else {
+            fft.process(frame)
+        }
         beatDetector.process(fft)
         bucketizer.process(fft)
         gainControl.process(buckets: bucketizer.buckets)
@@ -134,10 +183,32 @@ public final class AudioPipeline: @unchecked Sendable {
             latestBands[i] = Float(packet.fftBins[i]) / 254
         }
 
-        let raw = bucketMax > 0 ? bucketAvg / bucketMax * 255 : 0
-        packet.sampleRaw = Self.sanitized(raw)
-        packet.sampleSmth = packet.sampleRaw
-        packet.samplePeak = beatDetector.detected ? 1 : 0
+        // --- уровень ---
+        switch settings.loudness {
+        case .rms:
+            // Действительная громкость кадра, приведённая к 0…255 равномерно в децибелах:
+            // -60 dBFS даёт 0, полная шкала — 255. Именно этого ждут эффекты WLED.
+            packet.sampleRaw = Self.sanitized(Self.loudnessByte(rms: rms))
+        case .spectralRatio:
+            // Поведение оригинала: отношение средней полосы к максимальной. Это мера
+            // «плоскости» спектра, а не громкость, — сохранено только для сравнения.
+            packet.sampleRaw = Self.sanitized(bucketMax > 0 ? bucketAvg / bucketMax * 255 : 0)
+        }
+
+        // sampleSmth — сглаженная версия того же уровня, постоянная времени около 50 мс.
+        let alpha = min(1, 1 - exp(-1 / (0.05 * framesPerSecond)))
+        smoothedLoudness += alpha * (packet.sampleRaw - smoothedLoudness)
+        packet.sampleSmth = Self.sanitized(smoothedLoudness)
+
+        // Признак удара: одиночный импульс на фронте, иначе эффекты вроде Puddlepeak
+        // срабатывают непрерывно. WLED сбрасывает флаг сам через max(50 мс, кадр).
+        let beat = beatDetector.detected
+        if settings.beatLatch {
+            packet.samplePeak = (beat && !beatWasDetected) ? 1 : 0
+        } else {
+            packet.samplePeak = beat ? 1 : 0
+        }
+        beatWasDetected = beat
 
         // WLED делит это значение на 16/8/4/2 в разных эффектах, чтобы уложить в uint8.
         // Зажим сверху обязателен: без него на каждой атаке значение вылетает за предел
@@ -185,5 +256,15 @@ public final class AudioPipeline: @unchecked Sendable {
 
     private static func sanitized(_ value: Float) -> Float {
         value.isFinite ? value : 0
+    }
+
+    /// Громкость кадра в диапазоне 0…255, равномерно по децибелам.
+    /// Нижняя граница -60 dBFS: тише этого музыки в помещении не бывает,
+    /// а весь запас шкалы уходит на полезный диапазон.
+    static func loudnessByte(rms: Float, floorDB: Float = -60) -> Float {
+        guard rms > 0, rms.isFinite else { return 0 }
+        let dB = 20 * log10(rms)
+        let normalized = (dB - floorDB) / (0 - floorDB)
+        return min(max(normalized, 0), 1) * 255
     }
 }

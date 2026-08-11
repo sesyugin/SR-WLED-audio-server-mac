@@ -52,6 +52,16 @@ swift build -c release
 
 Все параметры — `srwled --help`.
 
+### Сравнение с оригиналом
+
+Каждое исправление обработки можно отключить и посмотреть на ленту глазами:
+
+```bash
+srwled --targets 192.168.1.50 --original          # ровно как Windows-версия
+srwled --targets 192.168.1.50 --window flattop    # только старое окно
+srwled --targets 192.168.1.50 --bands custom      # только старая сетка полос
+```
+
 ## Настройка ленты
 
 В веб-интерфейсе WLED: **Config → Usermods → AudioReactive**

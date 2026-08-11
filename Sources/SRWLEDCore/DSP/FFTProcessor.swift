@@ -25,7 +25,7 @@ public final class FFTProcessor {
     private var realp: [Float]
     private var imagp: [Float]
 
-    public init?(size: Int, sampleRate: Double) {
+    public init?(size: Int, sampleRate: Double, kind: WindowKind = .hann) {
         precondition(size > 0 && size & (size - 1) == 0, "Размер БПФ должен быть степенью двойки")
 
         self.size = size
@@ -34,7 +34,7 @@ public final class FFTProcessor {
         guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return nil }
         self.setup = setup
 
-        self.window = Self.flatTopWindow(size: size)
+        self.window = Self.makeWindow(kind, size: size)
         self.windowed = [Float](repeating: 0, count: size)
         self.realp = [Float](repeating: 0, count: size / 2)
         self.imagp = [Float](repeating: 0, count: size / 2)
@@ -52,16 +52,30 @@ public final class FFTProcessor {
         vDSP_destroy_fftsetup(setup)
     }
 
-    /// Окно Flat Top по коэффициентам FftSharp, нормированное так, чтобы сумма отсчётов равнялась 1
-    /// (`Window.NormalizeInPlace`).
-    private static func flatTopWindow(size: Int) -> [Float] {
-        let a0 = 0.21557895, a1 = 0.41663158, a2 = 0.277263158
-        let a3 = 0.083578947, a4 = 0.006947368
-
+    /// Строит окно, нормированное так, чтобы сумма отсчётов равнялась единице.
+    ///
+    /// Нормировка по сумме (как `Window.NormalizeInPlace` в FftSharp) даёт удобное свойство:
+    /// пик синуса амплитуды A на частоте бина равен ровно A/N независимо от формы окна.
+    /// Поэтому смена окна не ломает шкалу — меняется только избирательность.
+    private static func makeWindow(_ kind: WindowKind, size: Int) -> [Float] {
         let denominator = Double(size - 1)
-        var kernel = (0..<size).map { i -> Double in
-            let x = 2.0 * Double.pi * Double(i) / denominator
-            return a0 - a1 * cos(x) + a2 * cos(2 * x) - a3 * cos(3 * x) + a4 * cos(4 * x)
+
+        var kernel: [Double]
+        switch kind {
+        case .hann:
+            // Главный лепесток шириной 2 бина — тон остаётся в своей полосе.
+            kernel = (0..<size).map { i in
+                0.5 - 0.5 * cos(2.0 * Double.pi * Double(i) / denominator)
+            }
+
+        case .flatTop:
+            // Коэффициенты FftSharp.Windows.FlatTop — как в оригинале.
+            let a0 = 0.21557895, a1 = 0.41663158, a2 = 0.277263158
+            let a3 = 0.083578947, a4 = 0.006947368
+            kernel = (0..<size).map { i in
+                let x = 2.0 * Double.pi * Double(i) / denominator
+                return a0 - a1 * cos(x) + a2 * cos(2 * x) - a3 * cos(3 * x) + a4 * cos(4 * x)
+            }
         }
 
         let sum = kernel.reduce(0, +)

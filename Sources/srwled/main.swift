@@ -67,6 +67,11 @@ func printUsage() {
       --seconds <N>        работать N секунд и выйти (по умолчанию до Ctrl-C)
       --quiet              не печатать индикатор уровня
       --help               эта справка
+
+    Сравнение обработки:
+      --original           вести себя в точности как Windows-версия
+      --bands <вариант>    wled (по умолчанию) | custom — сетка полос
+      --window <вариант>   hann (по умолчанию) | flattop — окно анализа
     """)
 }
 
@@ -109,6 +114,31 @@ func parseOptions() -> Options?? {
                 print("--seconds требует число"); return nil
             }
             options.seconds = seconds
+
+        case "--original":
+            // Полностью поведение Windows-версии — для сравнения бок о бок.
+            let network = options.settings
+            options.settings = Settings.originalCompatible()
+            options.settings.port = network.port
+            options.settings.sendMode = network.sendMode
+            options.settings.targetIPList = network.targetIPList
+            options.settings.broadcastIPList = network.broadcastIPList
+
+        case "--bands":
+            guard let value = value() else { print("--bands требует значение"); return nil }
+            switch value {
+            case "wled": options.settings.bandLayout = .wled
+            case "custom": options.settings.bandLayout = .custom
+            default: print("--bands принимает wled или custom"); return nil
+            }
+
+        case "--window":
+            guard let value = value() else { print("--window требует значение"); return nil }
+            switch value {
+            case "hann": options.settings.window = .hann
+            case "flattop": options.settings.window = .flatTop
+            default: print("--window принимает hann или flattop"); return nil
+            }
 
         case "--quiet":
             options.quiet = true
@@ -172,6 +202,8 @@ func runServer() -> Int32 {
 
     print("Источник звука: \(tap.outputDeviceName), \(Int(format.sampleRate)) Гц, \(format.channels) кан.")
     print("Отправка: \(endpoints.map(\.description).joined(separator: ", "))")
+    print("Обработка: полосы \(options.settings.bandLayout.rawValue), окно "
+          + "\(options.settings.window.rawValue), уровень \(options.settings.loudness.rawValue)")
     print("")
 
     // Отправка идёт в отдельном потоке, разбуженном самим анализом.
