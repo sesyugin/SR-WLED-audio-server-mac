@@ -1,18 +1,18 @@
 import SwiftUI
 
-/// Гамма визуализации. Одна тональность на всю сцену: глубина читается яркостью
+/// Гамма сцены. Одна тональность на всю картинку: глубина читается яркостью
 /// и затуханием, а разноцветье её только разрушает.
 public enum Palette: String, CaseIterable, Identifiable, Sendable {
     case amber, ice, violet, mono
 
     public var id: String { rawValue }
 
-    /// Тон у основания (низ, бас) и тон в разогретой части (верх).
+    /// Тон в тени и тон в разогретой части.
     public var hues: (deep: Double, hot: Double) {
         switch self {
-        case .amber:  return (0.055, 0.115)
-        case .ice:    return (0.585, 0.505)
-        case .violet: return (0.760, 0.860)
+        case .amber:  return (0.035, 0.115)
+        case .ice:    return (0.600, 0.500)
+        case .violet: return (0.755, 0.885)
         case .mono:   return (0.000, 0.000)
         }
     }
@@ -29,84 +29,128 @@ public enum Palette: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Объёмная визуализация: шестнадцать светящихся колец в трёхмерном пространстве,
-/// по одному на полосу спектра.
+/// Объёмная сцена: светящаяся лента, свёрнутая спиралью в пространстве.
 ///
-/// Объём здесь настоящий и берётся из двух вещей. Первая — честная перспектива:
-/// кольца считаются в трёх координатах, вращаются, проецируются с делением на глубину,
-/// поэтому дальняя сторона кольца уже и тусклее ближней, а при вращении виден параллакс.
-/// Вторая — сложение света: нити рисуются в режиме `plusLighter` дважды, широким мягким
-/// ореолом и узкой яркой сердцевиной, и в местах пересечения свет накапливается и белеет,
-/// как настоящее свечение в дымке. Матовой закраски поверхностей здесь нет намеренно —
-/// освещённое тело выглядит предметом, а нужен объём света.
+/// Смысл картинки прямой: в центре — сама светодиодная лента, ради которой всё
+/// и затевалось. Её пиксели загораются от полос спектра, вдоль ленты бежит волна,
+/// а наружу улетают искры — уходящие в сеть пакеты. Позади висит дымка и медленные
+/// кольца, дающие сцене воздух и масштаб.
+///
+/// Данные берутся замыканием на каждом кадре, а не из наблюдаемого поля: поле
+/// обновляется десять раз в секунду, и картинка от него шла ступеньками — именно
+/// это читалось как дешёвая дёрганая анимация. Сглаживание живёт в `SpectrumSmoother`
+/// и считается от настоящего времени, а не от номера кадра.
 public struct VolumetricVisualizer: View {
-    public let bands: [Float]
-    public let peaks: [Float]
-    public let isRunning: Bool
-    public var palette: Palette
+    public typealias Sampler = () -> [Float]
 
-    public init(bands: [Float], peaks: [Float], isRunning: Bool, palette: Palette = .amber) {
-        self.bands = bands
-        self.peaks = peaks
+    private let sampler: Sampler
+    private let isRunning: Bool
+    private let palette: Palette
+    private let packetsPerSecond: Int
+
+    @State private var smoother = SpectrumSmoother()
+    @State private var motes = MoteField()
+
+    public init(sampler: @escaping Sampler,
+                isRunning: Bool,
+                palette: Palette = .amber,
+                packetsPerSecond: Int = 0)
+    {
+        self.sampler = sampler
         self.isRunning = isRunning
         self.palette = palette
+        self.packetsPerSecond = packetsPerSecond
     }
 
-    private static let ringCount = 16
-    private static let pointsPerRing = 96
+    /// Пикселей на ленте — как в распространённой ленте 144 диода на метр.
+    private static let pixelCount = 144
+    private static let turns = 2.6
 
     public var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isRunning)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
-            let energy = overallEnergy
 
             Canvas(rendersAsynchronously: true) { context, size in
-                drawGlow(&context, size: size, energy: energy, time: time)
-                drawRings(&context, size: size, energy: energy, time: time)
+                smoother.step(target: sampler(), time: time)
+                motes.step(time: time, energy: smoother.energy,
+                           rate: Double(packetsPerSecond), running: isRunning)
+
+                drawHaze(&context, size: size, time: time)
+                drawContextRings(&context, size: size, time: time)
+                drawStrip(&context, size: size, time: time)
+                drawMotes(&context, size: size)
                 drawVignette(&context, size: size)
             }
         }
-        .background(Color(red: 0.020, green: 0.017, blue: 0.026))
+        .background(
+            LinearGradient(colors: [Color(red: 0.032, green: 0.026, blue: 0.040),
+                                    Color(red: 0.011, green: 0.009, blue: 0.016)],
+                           startPoint: .top, endPoint: .bottom))
     }
 
-    private var overallEnergy: Double {
-        guard !bands.isEmpty else { return 0 }
-        return min(1, Double(bands.reduce(0, +)) / Double(bands.count))
+    // MARK: - Камера
+
+    private struct Camera {
+        let centre: CGPoint
+        let base: Double
+        let focal: Double
+        let distance: Double
+        let cosSpin: Double, sinSpin: Double
+        let cosTilt: Double, sinTilt: Double
+
+        init(size: CGSize, time: TimeInterval) {
+            centre = CGPoint(x: size.width / 2, y: size.height * 0.5)
+            base = min(size.width, size.height)
+            focal = base * 1.45
+            distance = base * 1.55
+            // Полный оборот примерно за сорок секунд: движение заметно, но не мельтешит.
+            let spin = time * 0.155
+            let tilt = 0.92 + sin(time * 0.07) * 0.07
+            cosSpin = cos(spin); sinSpin = sin(spin)
+            cosTilt = cos(tilt); sinTilt = sin(tilt)
+        }
+
+        func project(_ x: Double, _ y: Double, _ z: Double)
+            -> (point: CGPoint, scale: Double, depth: Double)
+        {
+            // Сначала вращение вокруг вертикали, потом наклон камеры. В обратном
+            // порядке ось всей формы сама вращается и картинка заваливается.
+            let rx = x * cosSpin + z * sinSpin
+            let rz = -x * sinSpin + z * cosSpin
+            let ty = y * cosTilt - rz * sinTilt
+            let tz = y * sinTilt + rz * cosTilt
+
+            let scale = focal / max(tz + distance, 1)
+            return (CGPoint(x: centre.x + rx * scale, y: centre.y + ty * scale), scale, tz)
+        }
     }
 
-    private func band(_ index: Int) -> Double {
-        index < bands.count ? min(1, Double(bands[index])) : 0
-    }
+    // MARK: - Дымка
 
-    // MARK: - Зарево в глубине
-
-    /// Свет из-за объекта. Кольца полупрозрачны, поэтому зарево просвечивает сквозь них —
-    /// именно так появляется ощущение дымки, в которой всё это висит.
-    private func drawGlow(_ context: inout GraphicsContext, size: CGSize,
-                          energy: Double, time: TimeInterval)
-    {
-        let centre = CGPoint(x: size.width / 2, y: size.height * 0.48)
+    private func drawHaze(_ context: inout GraphicsContext, size: CGSize, time: TimeInterval) {
         let base = min(size.width, size.height)
+        let centre = CGPoint(x: size.width / 2, y: size.height * 0.5)
         let hues = palette.hues
+        let energy = smoother.energy
         context.blendMode = .plusLighter
 
-        let layers: [(scale: Double, alpha: Double, hue: Double, drift: Double)] = [
-            (1.15, 0.34, hues.deep, 0.05),
-            (0.70, 0.30, hues.deep, 0.09),
-            (0.36, 0.34, hues.hot,  0.13),
+        let clouds: [(scale: Double, alpha: Double, hue: Double, drift: Double, phase: Double)] = [
+            (1.30, 0.26, hues.deep, 0.031, 0.0),
+            (0.85, 0.22, hues.deep, 0.047, 2.1),
+            (0.52, 0.26, hues.hot,  0.062, 4.0),
+            (0.30, 0.30, hues.hot,  0.083, 5.4),
         ]
 
-        for layer in layers {
-            let breathe = 0.55 + 0.45 * energy
-            let radius = base * layer.scale * (0.42 + 0.22 * breathe)
-            let wobbleX = cos(time * layer.drift) * base * 0.03
-            let wobbleY = sin(time * layer.drift * 1.4) * base * 0.02
-            let spot = CGPoint(x: centre.x + wobbleX, y: centre.y + wobbleY)
+        for cloud in clouds {
+            let radius = base * cloud.scale * (0.40 + 0.16 * energy)
+            let spot = CGPoint(
+                x: centre.x + cos(time * cloud.drift + cloud.phase) * base * 0.07,
+                y: centre.y + sin(time * cloud.drift * 1.3 + cloud.phase) * base * 0.05)
 
-            let colour = Color(hue: layer.hue,
-                               saturation: palette.saturation * (0.9 - 0.4 * energy),
+            let colour = Color(hue: cloud.hue,
+                               saturation: palette.saturation * (0.92 - 0.35 * energy),
                                brightness: 1)
-            let alpha = layer.alpha * (0.30 + 0.70 * energy)
+            let alpha = cloud.alpha * (0.28 + 0.72 * energy)
 
             context.fill(
                 Path(ellipseIn: CGRect(x: spot.x - radius, y: spot.y - radius,
@@ -114,8 +158,8 @@ public struct VolumetricVisualizer: View {
                 with: .radialGradient(
                     Gradient(stops: [
                         .init(color: colour.opacity(alpha), location: 0.0),
-                        .init(color: colour.opacity(alpha * 0.40), location: 0.32),
-                        .init(color: colour.opacity(alpha * 0.10), location: 0.64),
+                        .init(color: colour.opacity(alpha * 0.38), location: 0.30),
+                        .init(color: colour.opacity(alpha * 0.09), location: 0.62),
                         .init(color: colour.opacity(0), location: 1.0),
                     ]),
                     center: spot, startRadius: 0, endRadius: radius))
@@ -123,138 +167,212 @@ public struct VolumetricVisualizer: View {
         context.blendMode = .normal
     }
 
-    // MARK: - Кольца
+    // MARK: - Кольца позади
 
-    private func drawRings(_ context: inout GraphicsContext, size: CGSize,
-                           energy: Double, time: TimeInterval)
-    {
-        let centre = CGPoint(x: size.width / 2, y: size.height * 0.48)
-        let base = min(size.width, size.height)
+    private func drawContextRings(_ context: inout GraphicsContext, size: CGSize, time: TimeInterval) {
+        let camera = Camera(size: size, time: time)
         let hues = palette.hues
-
-        let spin = time * 0.20
-        let tilt = 1.02 + sin(time * 0.11) * 0.05     // кольца видны эллипсами, не с ребра
-        let focal = base * 1.35
-        let cameraDistance = base * 1.5
-
-        let cosSpin = cos(spin), sinSpin = sin(spin)
-        let cosTilt = cos(tilt), sinTilt = sin(tilt)
-
-        struct Ring {
-            var path: Path
-            var depth: Double
-            var value: Double
-            var index: Int
-            var nearness: Double
-        }
-
-        var rings: [Ring] = []
-        rings.reserveCapacity(Self.ringCount)
-
-        for index in 0..<Self.ringCount {
-            let value = band(index)
-            let peak = index < peaks.count ? min(1, Double(peaks[index])) : value
-
-            // Кольца расставлены по высоте: бас внизу, верх сверху.
-            let position = Double(index) / Double(Self.ringCount - 1)
-            let y = (position - 0.5) * base * 0.30
-
-            // Радиус: широкое основание, сужение кверху, плюс дыхание своей полосы.
-            let profile = 0.46 + 0.54 * sin(position * .pi)
-            let radius = base * 0.32 * profile * (0.62 + 0.52 * value)
-
-            var path = Path()
-            var depthSum = 0.0
-            var nearest = -Double.infinity
-
-            for step in 0...Self.pointsPerRing {
-                let theta = Double(step) / Double(Self.pointsPerRing) * 2 * .pi
-
-                // Рябь по окружности — кольцо не идеальный круг, иначе картинка мертвеет.
-                let ripple = 1 + 0.045 * sin(theta * 3 + time * 1.7 + position * 6)
-                               + 0.022 * sin(theta * 7 - time * 1.1)
-                let r = radius * ripple * (1 + 0.07 * peak * sin(theta * 2 - time * 2.3))
-
-                var x = cos(theta) * r
-                var z = sin(theta) * r
-                var yy = y
-
-                // Порядок важен: сперва вращение вокруг вертикали, и только потом наклон
-                // камеры. Если наклонить раньше, ось стопки колец сама начинает вращаться,
-                // и вся форма заваливается по диагонали.
-                let rx = x * cosSpin + z * sinSpin
-                let rz = -x * sinSpin + z * cosSpin
-                x = rx; z = rz
-
-                let ty = yy * cosTilt - z * sinTilt
-                let tz = yy * sinTilt + z * cosTilt
-                yy = ty; z = tz
-
-                depthSum += z
-                nearest = max(nearest, -z)
-
-                let scale = focal / max(z + cameraDistance, 1)
-                let point = CGPoint(x: centre.x + x * scale, y: centre.y + yy * scale)
-
-                if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
-            }
-
-            rings.append(Ring(path: path,
-                              depth: depthSum / Double(Self.pointsPerRing + 1),
-                              value: value,
-                              index: index,
-                              nearness: nearest / base))
-        }
-
-        // Дальние кольца рисуются первыми, ближние ложатся поверх.
-        rings.sort { $0.depth > $1.depth }
-
+        let energy = smoother.energy
         context.blendMode = .plusLighter
 
-        for ring in rings {
-            let position = Double(ring.index) / Double(Self.ringCount - 1)
-            let hue = hues.deep + (hues.hot - hues.deep) * position
+        for ring in 0..<4 {
+            let position = Double(ring) / 3.0
+            let radius = camera.base * (0.44 + 0.20 * position)
+            let y = camera.base * (position - 0.5) * 0.46
+            let value = smoother.values[min(smoother.values.count - 1, ring * 5)]
 
-            // Ближние кольца ярче и толще — это и есть считываемая глазом глубина.
-            let depthFade = 0.45 + 0.55 * max(0, min(1, (ring.nearness + 0.35) / 0.7))
-            let intensity = (0.10 + 0.90 * ring.value) * depthFade
+            var path = Path()
+            for step in 0...72 {
+                let theta = Double(step) / 72 * 2 * .pi
+                let r = radius * (1 + 0.05 * sin(theta * 3 + time * 0.5 + position * 4))
+                let projected = camera.project(cos(theta) * r, y, sin(theta) * r)
+                if step == 0 { path.move(to: projected.point) } else { path.addLine(to: projected.point) }
+            }
 
-            let colour = Color(hue: hue,
-                               saturation: palette.saturation * max(0, 0.95 - intensity * 0.75),
+            let colour = Color(hue: hues.deep, saturation: palette.saturation * 0.9, brightness: 1)
+            context.stroke(path,
+                           with: .color(colour.opacity((0.05 + 0.11 * value) * (0.35 + 0.65 * energy))),
+                           style: StrokeStyle(lineWidth: camera.base * 0.004, lineCap: .round))
+        }
+        context.blendMode = .normal
+    }
+
+    // MARK: - Лента
+
+    private func drawStrip(_ context: inout GraphicsContext, size: CGSize, time: TimeInterval) {
+        let camera = Camera(size: size, time: time)
+        let hues = palette.hues
+        let energy = smoother.energy
+
+        struct Pixel {
+            var point: CGPoint
+            var nearness: Double
+            var depth: Double
+            var intensity: Double
+            var hue: Double
+        }
+
+        var pixels: [Pixel] = []
+        pixels.reserveCapacity(Self.pixelCount)
+
+        let radius = camera.base * 0.30
+        let height = camera.base * 0.34
+        let referenceScale = camera.focal / camera.distance
+
+        for index in 0..<Self.pixelCount {
+            let t = Double(index) / Double(Self.pixelCount - 1)
+            let angle = t * Self.turns * 2 * .pi
+            let y = (t - 0.5) * height
+
+            // Полоса для этого пикселя. Сдвиг фазы со временем даёт бегущую вдоль
+            // ленты волну — ровно так свет идёт по настоящей ленте.
+            let bandPosition = (t * 16 + time * 1.1).truncatingRemainder(dividingBy: 16)
+            let lower = Int(bandPosition) % 16
+            let upper = (lower + 1) % 16
+            let blend = bandPosition - Double(lower)
+            let value = smoother.values[lower] * (1 - blend) + smoother.values[upper] * blend
+
+            let r = radius * (0.88 + 0.26 * value)
+            let projected = camera.project(cos(angle) * r, y, sin(angle) * r)
+
+            pixels.append(Pixel(point: projected.point,
+                                nearness: projected.scale / referenceScale,
+                                depth: projected.depth,
+                                intensity: value,
+                                hue: hues.deep + (hues.hot - hues.deep) * t))
+        }
+
+        // Нить, связывающая пиксели в единую ленту, — рисуется до них, по порядку следования.
+        var thread = Path()
+        for (index, pixel) in pixels.enumerated() {
+            if index == 0 { thread.move(to: pixel.point) } else { thread.addLine(to: pixel.point) }
+        }
+
+        context.blendMode = .plusLighter
+        context.stroke(thread,
+                       with: .color(Color(hue: hues.hot,
+                                          saturation: palette.saturation * 0.55,
+                                          brightness: 1).opacity(0.10 + 0.20 * energy)),
+                       style: StrokeStyle(lineWidth: camera.base * 0.012, lineCap: .round))
+
+        // Дальние пиксели рисуются первыми.
+        pixels.sort { $0.depth > $1.depth }
+
+        for pixel in pixels {
+            let dotSize = camera.base * 0.014 * pixel.nearness * (0.50 + 1.05 * pixel.intensity)
+            let brightness = 0.12 + 0.88 * pixel.intensity
+            let colour = Color(hue: pixel.hue,
+                               saturation: palette.saturation * max(0, 0.95 - brightness * 0.7),
                                brightness: 1)
 
-            // Мягкий ореол: широкая полупрозрачная линия.
-            context.stroke(ring.path,
-                           with: .color(colour.opacity(0.10 + 0.22 * intensity)),
-                           style: StrokeStyle(lineWidth: base * (0.010 + 0.022 * intensity),
-                                              lineCap: .round, lineJoin: .round))
+            let halo = dotSize * 3.8
+            context.fill(
+                Path(ellipseIn: CGRect(x: pixel.point.x - halo, y: pixel.point.y - halo,
+                                       width: halo * 2, height: halo * 2)),
+                with: .radialGradient(
+                    Gradient(stops: [
+                        .init(color: colour.opacity(0.52 * brightness), location: 0.0),
+                        .init(color: colour.opacity(0.18 * brightness), location: 0.4),
+                        .init(color: colour.opacity(0), location: 1.0),
+                    ]),
+                    center: pixel.point, startRadius: 0, endRadius: halo))
 
-            // Сердцевина: тонкая яркая нить.
-            context.stroke(ring.path,
-                           with: .color(colour.opacity(0.35 + 0.60 * intensity)),
-                           style: StrokeStyle(lineWidth: base * (0.0013 + 0.0030 * intensity),
-                                              lineCap: .round, lineJoin: .round))
+            context.fill(
+                Path(ellipseIn: CGRect(x: pixel.point.x - dotSize / 2, y: pixel.point.y - dotSize / 2,
+                                       width: dotSize, height: dotSize)),
+                with: .color(colour.opacity(0.55 + 0.45 * brightness)))
         }
 
         context.blendMode = .normal
     }
 
+    // MARK: - Искры пакетов
+
+    private func drawMotes(_ context: inout GraphicsContext, size: CGSize) {
+        guard !motes.items.isEmpty else { return }
+        let base = min(size.width, size.height)
+        let centre = CGPoint(x: size.width / 2, y: size.height * 0.5)
+        let hues = palette.hues
+        context.blendMode = .plusLighter
+
+        for mote in motes.items {
+            let distance = mote.progress * base * 0.86
+            let point = CGPoint(x: centre.x + cos(mote.angle) * distance,
+                                y: centre.y + sin(mote.angle) * distance * 0.42)
+            // Искра гаснет к краю — как пакет, ушедший в сеть.
+            let fade = (1 - mote.progress) * (1 - mote.progress)
+            let dot = base * 0.0035 * (0.6 + 0.8 * fade)
+
+            let colour = Color(hue: hues.hot, saturation: palette.saturation * 0.35, brightness: 1)
+            context.fill(
+                Path(ellipseIn: CGRect(x: point.x - dot, y: point.y - dot,
+                                       width: dot * 2, height: dot * 2)),
+                with: .color(colour.opacity(0.55 * fade)))
+        }
+        context.blendMode = .normal
+    }
+
     private func drawVignette(_ context: inout GraphicsContext, size: CGSize) {
-        let centre = CGPoint(x: size.width / 2, y: size.height * 0.48)
-        let radius = max(size.width, size.height) * 0.78
+        let centre = CGPoint(x: size.width / 2, y: size.height * 0.5)
+        let radius = max(size.width, size.height) * 0.80
         context.fill(
             Path(CGRect(origin: .zero, size: size)),
             with: .radialGradient(
                 Gradient(stops: [
-                    .init(color: .black.opacity(0), location: 0.30),
-                    .init(color: .black.opacity(0.40), location: 0.78),
-                    .init(color: .black.opacity(0.80), location: 1.0),
+                    .init(color: .black.opacity(0), location: 0.32),
+                    .init(color: .black.opacity(0.34), location: 0.76),
+                    .init(color: .black.opacity(0.76), location: 1.0),
                 ]),
                 center: centre, startRadius: 0, endRadius: radius))
     }
 }
 
-// MARK: - Плоская полоса для строки меню и компактных мест
+// MARK: - Искры
+
+/// Частицы, изображающие уходящие в сеть пакеты. Появляются тем чаще,
+/// чем выше настоящая частота отправки.
+final class MoteField {
+    struct Mote {
+        var angle: Double
+        var progress: Double
+        var speed: Double
+    }
+
+    private(set) var items: [Mote] = []
+    private var lastTime: TimeInterval = 0
+    private var spawnAccumulator: Double = 0
+    private var seed: UInt64 = 0x9E3779B97F4A7C15
+
+    private func random() -> Double {
+        seed = seed &* 6364136223846793005 &+ 1442695040888963407
+        return Double(UInt32(truncatingIfNeeded: seed >> 33)) / Double(UInt32.max)
+    }
+
+    func step(time: TimeInterval, energy: Double, rate: Double, running: Bool) {
+        let delta = lastTime == 0 ? 1.0 / 60.0 : min(0.1, max(0.0001, time - lastTime))
+        lastTime = time
+
+        for index in items.indices {
+            items[index].progress += items[index].speed * delta
+        }
+        items.removeAll { $0.progress >= 1 }
+
+        guard running else { return }
+
+        // Одна искра примерно на каждые четыре пакета — иначе их слишком много.
+        let perSecond = max(2.0, min(24.0, rate / 4)) * (0.35 + 0.65 * energy)
+        spawnAccumulator += perSecond * delta
+
+        while spawnAccumulator >= 1, items.count < 90 {
+            spawnAccumulator -= 1
+            items.append(Mote(angle: random() * 2 * .pi,
+                              progress: 0.12 + random() * 0.06,
+                              speed: 0.22 + random() * 0.28))
+        }
+    }
+}
+
+// MARK: - Плоская полоса для строки меню
 
 public struct SpectrumStrip: View {
     public let bands: [Float]

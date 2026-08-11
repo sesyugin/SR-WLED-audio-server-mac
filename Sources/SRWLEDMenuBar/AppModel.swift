@@ -150,6 +150,13 @@ final class AppModel: ObservableObject {
         L10n.current = language
     }
 
+    /// Свежие полосы прямо из обработки, мимо публикуемого поля.
+    /// Визуализация рисует 60 кадров в секунду, а поле обновляется десять раз —
+    /// картинка от него шла ступеньками.
+    func sampleBands() -> [Float] {
+        session?.pipeline?.currentBands() ?? []
+    }
+
     /// Короткий доступ к переводу с текущим языком.
     func localized(_ key: S) -> String { L10n.string(key, language) }
 

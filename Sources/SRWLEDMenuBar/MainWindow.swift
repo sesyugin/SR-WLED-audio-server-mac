@@ -22,13 +22,18 @@ struct MainWindow: View {
 
     private var stage: some View {
         ZStack {
-            VolumetricVisualizer(bands: model.bands,
-                                 peaks: model.peaks,
+            VolumetricVisualizer(sampler: { model.sampleBands() },
                                  isRunning: model.isRunning,
-                                 palette: model.palette)
+                                 palette: model.palette,
+                                 packetsPerSecond: model.packetsPerSecond)
                 .ignoresSafeArea()
 
             VStack {
+                HStack(alignment: .top) {
+                    BrandLockup()
+                    Spacer()
+                }
+                .padding(.bottom, 14)
                 stageHeader
                 Spacer()
                 if !model.isRunning { stagePrompt }

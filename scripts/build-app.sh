@@ -7,8 +7,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP_NAME="SR-WLED"
-BUNDLE_ID="${SRWLED_BUNDLE_ID:-io.github.srwled.mac}"
+APP_NAME="Auralis"
+BUNDLE_ID="${SRWLED_BUNDLE_ID:-io.github.auralis.mac}"
 VERSION="0.3.0"
 BUILD="3"
 DEST="dist/${APP_NAME}.app"
@@ -22,6 +22,15 @@ mkdir -p "$DEST/Contents/MacOS" "$DEST/Contents/Resources"
 
 cp .build/release/SRWLEDMenuBar "$DEST/Contents/MacOS/${APP_NAME}"
 
+echo "==> Иконка"
+# Знак рисуется кодом: SRWLEDPreview раскладывает его по размерам, iconutil собирает .icns.
+swift build -c release --product SRWLEDPreview >/dev/null 2>&1
+swift run -c release --quiet SRWLEDPreview >/dev/null 2>&1 || true
+if [ -d /tmp/Auralis.iconset ]; then
+    iconutil -c icns /tmp/Auralis.iconset -o "$DEST/Contents/Resources/${APP_NAME}.icns" 2>/dev/null \
+        && echo "    иконка собрана" || echo "    иконку собрать не удалось"
+fi
+
 cat > "$DEST/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -30,7 +39,7 @@ cat > "$DEST/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key>
     <string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key>
-    <string>SR-WLED Audio Server</string>
+    <string>Auralis</string>
     <key>CFBundleIdentifier</key>
     <string>${BUNDLE_ID}</string>
     <key>CFBundleExecutable</key>
@@ -52,6 +61,9 @@ cat > "$DEST/Contents/Info.plist" <<PLIST
     <!-- macOS 15 и новее спрашивает отдельное разрешение на локальную сеть. -->
     <key>NSLocalNetworkUsageDescription</key>
     <string>Отправляет спектр звука на светодиодные ленты с прошивкой WLED в домашней сети.</string>
+
+    <key>CFBundleIconFile</key>
+    <string>${APP_NAME}</string>
 
     <key>NSHighResolutionCapable</key>
     <true/>
