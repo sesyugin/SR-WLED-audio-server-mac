@@ -17,5 +17,6 @@ runStripDiagnosticsTests(runner)
 runProcessingSettingsTests(runner)
 runLocalizationTests(runner)
 runDiagnosticsLanguageTests(runner)
+runLayoutTests(runner)
 
 exit(runner.summarize())
