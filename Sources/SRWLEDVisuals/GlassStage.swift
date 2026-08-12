@@ -58,7 +58,19 @@ struct GlassStage {
               base: Double)
     {
         let line = max(0.4, base * 0.0009)
-        drawPodium(&context, project: project, radius: radius, base: base)
+
+        // Высота помоста. Сцена — не круг, нарисованный на полу, а настил
+        // с толщиной: у настоящей площадки есть кромка, и по ней глаз и
+        // понимает, что люди стоят на возвышении, а не на общем полу зала.
+        //
+        // Поднимается всё разом обёрткой над проекцией: на сцене за три сотни
+        // тел, и поднимать их поштучно — это триста мест, где можно забыть.
+        // Помост рисуется исходной проекцией, от пола до своей крышки,
+        // а всё остальное — этой: для неё ноль высоты приходится на настил.
+        let deck = maxHeight * 0.135
+        let onDeck: Solid3D.Projection = { x, y, z in project(x, y - deck, z) }
+
+        drawPodium(&context, project: project, radius: radius, base: base, deck: deck)
 
         // Рост фигур задан в долях высоты венца, положение — в долях его радиуса.
         // Знак z: положительный уходит от зрителя.
@@ -79,7 +91,7 @@ struct GlassStage {
         // раскладка стояла в его дальней половине: перед вокалистом оставалась
         // пустая треть сцены, и центр тяжести кадра уезжал вверх, к ферме.
         pieces += drummer(at: place(0.00, 0.37), height: stand * 0.40,
-                          project: project, line: line)
+                          project: onDeck, line: line)
         // Портал стоит на подиуме, а не за ним: дальний угол развёрнутого стека
         // ложится на 0.69 радиуса при крае подиума 0.72 — у самой кромки, но
         // целиком на сцене.
@@ -90,13 +102,13 @@ struct GlassStage {
         // два глухих ящика были самыми крупными и яркими телами сцены и тянули
         // взгляд в углы, мимо музыкантов.
         pieces += speaker(at: place(-0.545, 0.17), height: stand * 0.385, turn: -0.34,
-                          project: project, line: line)
+                          project: onDeck, line: line)
         pieces += speaker(at: place( 0.545, 0.17), height: stand * 0.385, turn: 0.34,
-                          project: project, line: line)
+                          project: onDeck, line: line)
         pieces += guitarist(at: place(-0.30, -0.09), height: stand * 0.44,
-                            project: project, line: line)
+                            project: onDeck, line: line)
         pieces += keyboardist(at: place(0.30, -0.07), height: stand * 0.42,
-                              project: project, line: line)
+                              project: onDeck, line: line)
         // Рост вокалиста считан по экрану, а не назначен на глаз. Камера с
         // перспективой: вынесенный к зрителю на 0.37 радиуса певец и так
         // получает прибавку в масштабе, и прежние 0.50 роста давали на кадре
@@ -107,11 +119,11 @@ struct GlassStage {
         // сверху. Здесь 99 против 95 — фронтмен впереди группы и должен быть
         // чуть крупнее, но именно чуть.
         pieces += vocalist(at: place(0.00, -0.37), height: stand * 0.414,
-                           project: project, line: line)
+                           project: onDeck, line: line)
 
         // Ферма позади группы: единственное, что стоит выше людей, — поэтому
         // она и читается сценой, а не помостом с фигурами.
-        pieces += lightRig(radius: radius, stand: stand, project: project, line: line)
+        pieces += lightRig(radius: radius, stand: stand, project: onDeck, line: line)
 
         // Стойки стоят вполоборота сбоку от гитариста и клавишника: журавль
         // заведён обратно к музыканту, к его лицу.
@@ -125,12 +137,17 @@ struct GlassStage {
         // уедет выше макушки, подай вперёд — упадёт к поясу.
         pieces += micStand(base: place(-0.400, -0.190), height: stand * 0.46,
                            boom: (stand * 0.082, -stand * 0.112, radius * 0.045),
-                           phase: 1.1, project: project, line: line)
+                           phase: 1.1, project: onDeck, line: line)
         pieces += micStand(base: place(0.402, -0.168), height: stand * 0.44,
                            boom: (-stand * 0.070, -stand * 0.098, radius * 0.045),
-                           phase: 2.9, project: project, line: line)
+                           phase: 2.9, project: onDeck, line: line)
 
-        // Мониторы у края подиума, вдоль передней дуги. Дальше выносить нельзя:
+        // Мониторы у края подиума, вдоль передней дуги. Вся передняя мелочь
+        // подтянута внутрь почти на десятую радиуса: помост поднялся, и то,
+        // что стояло у самой кромки, оказалось на экране вровень с ближними
+        // столбиками венца. На громком басе они вырастают во весь рост и
+        // закрывали передний ряд целиком — клин, кофр и бухту разом.
+        // Дальше выносить нельзя:
         // край подиума на 0.72 радиуса, а вправо и влево от середины передняя
         // дуга уходит под самый венец, и клин ложится на светящиеся столбики.
         // Клинья разнесены по дуге, по одному на музыканта: сдвинутые к середине,
@@ -141,15 +158,15 @@ struct GlassStage {
         // они теперь по всем трём приметам разом: калибр, доворот и завал.
         // Одинаковыми они и не бывают — на площадке это разные ящики из разных
         // комплектов, и ставит их ногой тот, кому за ними петь.
-        pieces += monitor(at: place(-0.392, -0.487), width: stand * 0.104, turn: -0.86,
-                          rake: 0.54, project: project, line: line)
+        pieces += monitor(at: place(-0.392, -0.425), width: stand * 0.104, turn: -0.86,
+                          rake: 0.54, project: onDeck, line: line)
         // Средний клин довёрнут чуть вбок: поставленный анфас, он показывает
         // камере одну грань и читается плоской карточкой — тем же, чем читались
         // неразвёрнутые колонки портала.
-        pieces += monitor(at: place(0.000, -0.535), width: stand * 0.132, turn: 0.22,
-                          rake: 0.41, project: project, line: line)
-        pieces += monitor(at: place(0.398, -0.452), width: stand * 0.116, turn: 0.46,
-                          rake: 0.50, project: project, line: line)
+        pieces += monitor(at: place(0.000, -0.462), width: stand * 0.132, turn: 0.22,
+                          rake: 0.41, project: onDeck, line: line)
+        pieces += monitor(at: place(0.398, -0.395), width: stand * 0.116, turn: 0.46,
+                          rake: 0.50, project: onDeck, line: line)
 
         // Мелочь передней кромки. Пустая треть кадра — не про нехватку
         // предметов, а про то, что край сцены выглядел выметенным: на живой
@@ -157,12 +174,12 @@ struct GlassStage {
         // Кофр и бухта разнесены по разным половинам и стоят чуть впереди
         // клиньев: встав с ними в один ряд, они удлинили бы ту же дугу,
         // от которой передний план и рассыпался.
-        pieces += roadCase(at: place(-0.208, -0.556), width: stand * 0.102, turn: 0.42,
-                           project: project, line: line)
-        pieces += cableCoil(at: place(0.210, -0.582), radius: stand * 0.058,
+        pieces += roadCase(at: place(-0.208, -0.480), width: stand * 0.102, turn: 0.42,
+                           project: onDeck, line: line)
+        pieces += cableCoil(at: place(0.210, -0.500), radius: stand * 0.058,
                             gauge: stand * 0.0088,
-                            tail: place(0.372, -0.486),
-                            project: project, line: line)
+                            tail: place(0.372, -0.420),
+                            project: onDeck, line: line)
 
         // Кабели от инструментов к порталу. Провода объясняют, откуда у сцены
         // звук: без них и гитара, и клавиши стоят сами по себе, а колонки —
@@ -175,11 +192,11 @@ struct GlassStage {
         pieces += cable(from: (place(-0.350, -0.145).0, -stand * 0.245, place(-0.350, -0.145).1),
                         to: (place(-0.487, 0.095).0, 0, place(-0.487, 0.095).1),
                         bow: radius * 0.028, hang: stand * 0.085, gauge: gauge,
-                        project: project, line: line)
+                        project: onDeck, line: line)
         pieces += cable(from: (place(0.362, -0.125).0, -stand * 0.185, place(0.362, -0.125).1),
                         to: (place(0.500, 0.095).0, 0, place(0.500, 0.095).1),
                         bow: -radius * 0.026, hang: stand * 0.070, gauge: gauge,
-                        project: project, line: line)
+                        project: onDeck, line: line)
         // Провод вокалиста уходит от микрофона к переднему монитору: ручной
         // микрофон без шнура читается не микрофоном, а гантелью. Конец провода
         // посажен на предмет, а не в пустоту — оборванный посреди сцены шнур
@@ -193,9 +210,9 @@ struct GlassStage {
         // фигуры в покое (0.027 радиуса вбок, 0.384 вглубь, 0.354 высоты) —
         // качка её слегка водит, но на пиксель-другой.
         pieces += cable(from: (place(0.027, -0.384).0, -stand * 0.354, place(0.027, -0.384).1),
-                        to: (place(0.088, -0.520).0, 0, place(0.088, -0.520).1),
+                        to: (place(0.088, -0.450).0, 0, place(0.088, -0.450).1),
                         bow: -radius * 0.085, hang: stand * 0.105, gauge: gauge,
-                        project: project, line: line)
+                        project: onDeck, line: line)
 
         // Общая сортировка: без неё тела накладываются в порядке создания
         // и объём рассыпается. В списке около 320 тел — это и есть цена кадра,
@@ -210,16 +227,92 @@ struct GlassStage {
 
     // MARK: - Подиум
 
+    /// Помост: настил с толщиной, а не круг, залитый на полу.
+    ///
+    /// Обечайка собрана из отдельных панелей и рисуется от дальних к ближним.
+    /// Одной заливкой обойтись нельзя: у цилиндра освещённость идёт по кругу,
+    /// и ровно закрашенная лента читается не боком, а тенью под кругом.
+    /// Панели заодно дают кромке членение — по нему и видно, что помост
+    /// собран из щитов, как настоящий сценический станок.
     private func drawPodium(_ context: inout GraphicsContext,
                             project: Solid3D.Projection,
                             radius: Double,
-                            base: Double)
+                            base: Double,
+                            deck: Double)
     {
         let podiumRadius = radius * 0.72
+        let panels = 72
+
+        /// Точка на кромке: угол и высота от пола.
+        func rim(_ theta: Double, _ level: Double) -> (CGPoint, Double) {
+            let projected = project(cos(theta) * podiumRadius, -level, sin(theta) * podiumRadius)
+            return (projected.0, projected.2)
+        }
+
+        // Обечайка — одно тело, а не набор панелей. Разбитая на семьдесят две
+        // грани, она полосила зеброй: у соседних заливок общий край, сглаживание
+        // на нём даёт шов, и семь десятков швов подряд читаются рифлением бочки,
+        // а не гладким бортом. Освещённость по кругу отдаётся поперечной
+        // раскладкой — то же, чем закрашивается цилиндр в Solid3D.
+        //
+        // Видна только ближняя половина: дальнюю закрывает крышка настила.
+        // Ближняя — это z отрицательное, то есть угол от половины оборота
+        // до полного.
+        var band = Path()
+        for step in 0...panels {
+            let theta = .pi + Double(step) / Double(panels) * .pi
+            let point = rim(theta, deck).0
+            if step == 0 { band.move(to: point) } else { band.addLine(to: point) }
+        }
+        for step in stride(from: panels, through: 0, by: -1) {
+            let theta = .pi + Double(step) / Double(panels) * .pi
+            band.addLine(to: rim(theta, 0).0)
+        }
+        band.closeSubpath()
+
+        let bandBounds = band.boundingRect
+        context.fill(band,
+                     with: .linearGradient(
+                         Gradient(stops: [
+                             .init(color: Color(hue: 0.072, saturation: 0.66,
+                                                brightness: 0.42), location: 0.0),
+                             .init(color: Color(hue: 0.055, saturation: 0.80,
+                                                brightness: 0.26), location: 0.34),
+                             .init(color: Color(hue: 0.038, saturation: 0.92,
+                                                brightness: 0.115), location: 0.78),
+                             .init(color: Color(hue: 0.030, saturation: 0.95,
+                                                brightness: 0.075), location: 1.0),
+                         ]),
+                         startPoint: CGPoint(x: bandBounds.minX, y: bandBounds.midY),
+                         endPoint: CGPoint(x: bandBounds.maxX, y: bandBounds.midY)))
+
+        // Борт темнеет книзу: света сверху, у самого пола его нет вовсе.
+        context.fill(band,
+                     with: .linearGradient(
+                         Gradient(stops: [
+                             .init(color: .clear, location: 0.0),
+                             .init(color: .clear, location: 0.45),
+                             .init(color: .black.opacity(0.55), location: 1.0),
+                         ]),
+                         startPoint: CGPoint(x: bandBounds.midX, y: bandBounds.minY),
+                         endPoint: CGPoint(x: bandBounds.midX, y: bandBounds.maxY)))
+
+        // Членение борта: восемь стыков щитов, нарисованных нарочно. Стык,
+        // возникающий сам собой на краю заливки, — это брак; стык, поставленный
+        // с шагом и в меру, — это признак того, что помост из чего-то собран.
+        var seams = Path()
+        for index in 1..<8 {
+            let theta = .pi + Double(index) / 8 * .pi
+            seams.move(to: rim(theta, deck).0)
+            seams.addLine(to: rim(theta, 0).0)
+        }
+        context.stroke(seams, with: .color(.black.opacity(0.30)),
+                       style: StrokeStyle(lineWidth: max(0.5, base * 0.0008)))
+
+        // Крышка настила поверх обечайки: она и закрывает дальнюю половину.
         var disc = Path()
-        for step in 0...120 {
-            let theta = Double(step) / 120 * 2 * .pi
-            let point = project(cos(theta) * podiumRadius, 0, sin(theta) * podiumRadius).0
+        for step in 0...panels {
+            let point = rim(Double(step) / Double(panels) * 2 * .pi, deck).0
             if step == 0 { disc.move(to: point) } else { disc.addLine(to: point) }
         }
         disc.closeSubpath()
@@ -228,18 +321,36 @@ struct GlassStage {
         context.fill(disc,
                      with: .linearGradient(
                          Gradient(colors: [
-                             Color(hue: 0.085, saturation: 0.55, brightness: 1)
-                                 .opacity(0.020 + 0.026 * energy),
-                             Color(hue: 0.055, saturation: 0.8, brightness: 1).opacity(0.005),
+                             Color(hue: 0.075, saturation: 0.62, brightness: 1)
+                                 .opacity(0.030 + 0.030 * energy),
+                             Color(hue: 0.035, saturation: 0.9, brightness: 1).opacity(0.006),
                          ]),
                          startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
                          endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)))
 
+        // Светящаяся кромка настила — то, по чему читается верхний край.
+        // На площадке её и правда пускают лентой по борту сцены, так что
+        // это не украшение, а та же деталь, что и всё остальное на помосте.
         context.blendMode = .plusLighter
         context.stroke(disc,
-                       with: .color(Color(hue: 0.095, saturation: 0.45, brightness: 1)
-                           .opacity(0.16 + 0.22 * energy)),
-                       style: StrokeStyle(lineWidth: max(0.5, base * 0.0010)))
+                       with: .color(Color(hue: 0.070, saturation: 0.55, brightness: 1)
+                           .opacity(0.24 + 0.34 * energy)),
+                       style: StrokeStyle(lineWidth: max(0.7, base * 0.0016)))
+
+        // Отблеск на полу вокруг помоста: без него настил стоит на пустоте.
+        // Идёт он только по ближней дуге — с дальней стороны борт от зрителя
+        // отвёрнут, и светиться там нечему.
+        var foot = Path()
+        for step in 0...panels {
+            let theta = Double(step) / Double(panels) * 2 * .pi
+            let point = rim(theta, 0).0
+            if step == 0 { foot.move(to: point) } else { foot.addLine(to: point) }
+        }
+        foot.closeSubpath()
+        context.stroke(foot,
+                       with: .color(Color(hue: 0.045, saturation: 0.85, brightness: 1)
+                           .opacity(0.07 + 0.10 * energy)),
+                       style: StrokeStyle(lineWidth: max(0.5, base * 0.0011)))
         context.blendMode = .normal
     }
 
@@ -1585,53 +1696,112 @@ struct GlassStage {
              z - across * sinTurn + depth * cosTurn)
         }
 
+        // Железо подвеса: рамы и тяги между кабинетами. Тонкое и приглушённое —
+        // на площадке это чёрный металл, и светиться ему нечем.
+        let rig = Solid3D.Material(saturation: 0.70, glow: 0.08 + 0.18 * air,
+                                   opacity: 0.62, shade: 0.66)
+
         // Тень уведена из-под стека: сверху ящик накрывает своё основание
         // целиком, и посаженная по центру она пропадала под ним без остатка —
         // портал висел в воздухе, хотя стоял на полу всеми четырьмя углами.
-        pieces.append(Solid3D.contactShadow(at: (x, z), radius: h * 0.30,
+        pieces.append(Solid3D.contactShadow(at: (x, z), radius: h * 0.26,
                                             strength: 0.78, project: project,
                                             drift: 0.62))
 
-        // Подставка: кабинет на площадке никогда не стоит прямо на полу, под
-        // ним брус или колёса. Без неё стек выглядит вкопанным в сцену.
+        // Подкат под сабом: кабинет такого веса на площадке никогда не ставят
+        // прямо на настил, под ним рама с колёсами.
         pieces.append(Solid3D.box(
-            centre: local(0, -h * 0.025, 0),
-            size: (h * 0.44, h * 0.05, h * 0.38),
+            centre: local(0, -h * 0.024, 0),
+            size: (h * 0.40, h * 0.048, h * 0.34),
+            material: rig, project: project, lineWidth: line, yaw: turn))
+
+        // Сабвуфер: единственное тело стека, которое стоит на полу. Он и
+        // держит на себе всю башню, поэтому он самый широкий и глубокий.
+        pieces.append(Solid3D.box(
+            centre: local(0, -h * 0.185, 0),
+            size: (h * 0.38, h * 0.275, h * 0.32),
             material: cabinet, project: project, lineWidth: line, yaw: turn))
+        // Два порта на фасаде саба вместо динамика: у настоящего сабвуфера
+        // наружу выходят щели фазоинвертора, а диффузор спрятан внутри.
+        for side in [-1.0, 1.0] {
+            pieces.append(Solid3D.box(
+                centre: local(side * h * 0.098, -h * 0.185, -h * 0.157),
+                size: (h * 0.105, h * 0.150, h * 0.022),
+                material: slot, project: project, lineWidth: line, yaw: turn))
+        }
 
-        // Сабвуфер: широкий и глубокий, от 0.05h до 0.50h.
-        pieces.append(Solid3D.box(
-            centre: local(0, -h * 0.275, 0),
-            size: (h * 0.42, h * 0.45, h * 0.34),
-            material: cabinet, project: project, lineWidth: line, yaw: turn))
+        // Линейный массив: пять узких кабинетов один над другим, каждый
+        // завален вперёд сильнее предыдущего. Так и вешают массив на любой
+        // площадке: верхние ящики бьют в дальние ряды почти горизонтально,
+        // нижние — под ноги первому ряду, и вся башня выгибается дугой.
+        //
+        // Дуга здесь и есть весь смысл замены: две коробки, поставленные одна
+        // на другую, силуэта не имеют вовсе — это тумба. У массива силуэт
+        // читается издали, и по нему видно, что это акустика, а не мебель.
+        let boxes = 5
+        var level = h * 0.325
+        for index in 0..<boxes {
+            let step = Double(index) / Double(boxes - 1)
+            // Кабинеты кверху мельчают, но чуть-чуть. Сильный перепад ширины
+            // давал ступенчатую башню — свадебный торт, а не массив: у него
+            // силуэт сужается не ступенями, а разворотом ящиков.
+            let tall = h * (0.106 - 0.014 * step)
+            let wide = h * (0.330 - 0.030 * step)
+            let deep = h * (0.150 - 0.016 * step)
+            // Завал: нижний ящик уходит вперёд сильнее всех, верхний почти
+            // отвесен. Так и вешают массив — нижние ящики бьют под ноги
+            // первому ряду, верхние в дальние. Разброс здесь и делает силуэт:
+            // на этой камере, смотрящей сверху, завал виден по тому, как
+            // расходятся передние кромки, и веер читается лучше ступеней.
+            let rake = -0.045 - 0.230 * (1 - step)
 
-        // Топ: уже саба и отодвинут вглубь, так что фасады не в одной плоскости.
-        // Этот уступ и есть то, по чему стопка читается двумя кабинетами, а не
-        // одним высоким ящиком: у сплошного корпуса излома фасада не бывает.
-        let inset = h * 0.03
-        pieces.append(Solid3D.box(
-            centre: local(0, -h * 0.71, inset),
-            size: (h * 0.34, h * 0.42, h * 0.28),
-            material: cabinet, project: project, lineWidth: line, yaw: turn))
+            let centre = level + tall / 2
+            // Ящики массива темнее саба: их пять, и все они показывают камере
+            // свою крышку. На общем тоне пять светлых плоскостей одна над
+            // другой давали в углу кадра самое яркое пятно сцены — ярче
+            // барабанов, ярче музыкантов.
+            var arrayBox = cabinet
+            arrayBox.shade = 0.56
+            pieces.append(Solid3D.box(
+                centre: local(0, -centre, 0),
+                size: (wide, tall, deep),
+                material: arrayBox, project: project, lineWidth: line,
+                yaw: turn, pitch: rake))
 
-        // Динамики — диски на фасаде, а не шары, выпирающие из корпуса.
-        pieces.append(Solid3D.faceDisc(
-            centre: local(0, -h * 0.30, -h * 0.172), radius: h * 0.135,
-            material: cone, project: project, lineWidth: line))
-        pieces.append(Solid3D.faceDisc(
-            centre: local(0, -h * 0.62, inset - h * 0.142), radius: h * 0.078,
-            material: cone, project: project, lineWidth: line))
+            // Волновод на фасаде: узкая горизонтальная щель во всю ширину.
+            // Круглый диффузор тут был бы враньём — у массива наружу смотрит
+            // именно щель, и по ней он и узнаётся.
+            pieces.append(Solid3D.box(
+                centre: local(0, -centre, -deep * 0.46),
+                size: (wide * 0.72, tall * 0.30, h * 0.016),
+                material: slot, project: project, lineWidth: line,
+                yaw: turn, pitch: rake))
 
-        // Щель фазоинвертора внизу саба и рупор над серединой топа — мелочи,
-        // по которым ящик читается акустикой, а не тумбой.
-        pieces.append(Solid3D.box(
-            centre: local(0, -h * 0.100, -h * 0.166),
-            size: (h * 0.24, h * 0.040, h * 0.028),
-            material: slot, project: project, lineWidth: line, yaw: turn))
-        pieces.append(Solid3D.box(
-            centre: local(0, -h * 0.805, inset - h * 0.136),
-            size: (h * 0.22, h * 0.085, h * 0.028),
-            material: slot, project: project, lineWidth: line, yaw: turn))
+            // Два динамика по краям щели — то, что у массива стоит по бокам
+            // от волновода. Мелкие: на этом размере важно не показать их,
+            // а не дать фасаду остаться голой плитой.
+            for side in [-1.0, 1.0] {
+                pieces.append(Solid3D.faceDisc(
+                    centre: local(side * wide * 0.30, -centre, -deep * 0.52),
+                    radius: tall * 0.26,
+                    material: cone, project: project, lineWidth: line))
+            }
+
+            // Тяги между кабинетами: короткие стойки по бокам, которыми
+            // ящики и сцеплены в башню. Без них массив рассыпается на
+            // отдельные коробки, зависшие одна над другой.
+            if index < boxes - 1 {
+                for side in [-1.0, 1.0] {
+                    pieces.append(Solid3D.capsule(
+                        from: local(side * wide * 0.46, -(level + tall * 0.85), deep * 0.30),
+                        to: local(side * wide * 0.44, -(level + tall * 1.18), deep * 0.26),
+                        radius: h * 0.010, material: rig,
+                        project: project, lineWidth: line))
+                }
+            }
+
+            level += tall * 1.02
+        }
 
         return pieces
     }
