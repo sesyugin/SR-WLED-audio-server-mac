@@ -22,10 +22,10 @@ struct MainWindow: View {
 
     private var stage: some View {
         ZStack {
-            VolumetricVisualizer(sampler: { model.sampleBands() },
-                                 isRunning: model.isRunning,
-                                 palette: model.palette,
-                                 packetsPerSecond: model.packetsPerSecond)
+            StageScene(sampler: { model.sampleBands() },
+                       isRunning: model.isRunning,
+                       palette: model.palette,
+                       packetsPerSecond: model.packetsPerSecond)
                 .ignoresSafeArea()
 
             VStack {

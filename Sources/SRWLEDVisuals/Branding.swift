@@ -30,63 +30,83 @@ public struct BrandMark: View {
     public var body: some View {
         Canvas { context, size in
             let side = min(size.width, size.height)
-            let centre = CGPoint(x: size.width / 2, y: size.height / 2)
-            let radius = side * 0.30
-            let thickness = side * 0.105
+            let midY = size.height / 2
+            let left = size.width * 0.5 - side * 0.40
+            let right = size.width * 0.5 + side * 0.40
+            let span = right - left
+            let amplitude = side * 0.20
+            let thickness = side * 0.085
 
-            // Разрыв справа, а не внизу: снизу он читался подковой. Так виден
-            // конец ленты с ярким первым диодом.
-            let start = Angle(degrees: 42)
-            let end = Angle(degrees: -18)
+            /// Одна волна на всю ширину знака. Слева она сплошная, справа рассыпается
+            /// на отдельные светодиоды — это и есть суть программы: звук становится светом.
+            func wave(_ t: Double) -> CGPoint {
+                let x = left + span * t
+                // Затухание к концу: волна «успокаивается» в ровную линию светодиодов.
+                // Без него хвост уходил по диагонали в угол и знак заваливался.
+                let damping = 1.0 - 0.88 * t * t
+                let y = midY - sin(t * .pi * 2.6) * amplitude * damping
+                return CGPoint(x: x, y: y)
+            }
 
-            var arc = Path()
-            arc.addArc(center: centre, radius: radius,
-                       startAngle: start, endAngle: end, clockwise: false)
+            // Сплошная часть волны — левые три пятых.
+            var line = Path()
+            for step in 0...60 {
+                let t = Double(step) / 60 * 0.56
+                let point = wave(t)
+                if step == 0 { line.move(to: point) } else { line.addLine(to: point) }
+            }
 
-            // Ореол: несколько обводок с падающей прозрачностью вместо одной толстой.
-            // Одна давала плотное кольцо, читавшееся вторым контуром, а не свечением.
             if !monochrome {
                 context.blendMode = .plusLighter
-                for step in stride(from: 6.0, through: 1.2, by: -0.4) {
-                    context.stroke(arc,
-                                   with: .color(Brand.accent.opacity(0.016 * lit)),
-                                   style: StrokeStyle(lineWidth: thickness * step, lineCap: .round))
+                for width in stride(from: 5.0, through: 1.5, by: -0.5) {
+                    context.stroke(line,
+                                   with: .color(Brand.accent.opacity(0.02 * lit)),
+                                   style: StrokeStyle(lineWidth: thickness * width, lineCap: .round))
                 }
                 context.blendMode = .normal
             }
 
-            // Тело ленты: градиент от тёплой тени к раскалённому концу.
-            context.stroke(arc,
+            context.stroke(line,
                            with: monochrome
                                ? .color(.black)
                                : .linearGradient(
-                                   Gradient(colors: [Brand.accentDeep, Brand.accent, .white]),
-                                   startPoint: CGPoint(x: centre.x - radius, y: centre.y + radius),
-                                   endPoint: CGPoint(x: centre.x + radius, y: centre.y - radius)),
+                                   Gradient(colors: [Brand.accentDeep, Brand.accent]),
+                                   startPoint: CGPoint(x: left, y: midY),
+                                   endPoint: CGPoint(x: left + span * 0.56, y: midY)),
                            style: StrokeStyle(lineWidth: thickness, lineCap: .round))
 
-            // Яркий пиксель на конце ленты — тот самый «первый диод».
-            let tip = CGPoint(x: centre.x + cos(end.radians) * radius,
-                              y: centre.y - sin(end.radians) * radius)
-            let dot = thickness * 0.62
-            if !monochrome {
-                context.blendMode = .plusLighter
-                let halo = dot * 3.4
+            // Правая часть: отдельные светодиоды по той же кривой, разгорающиеся к концу.
+            let pixels = 5
+            for index in 0..<pixels {
+                let t = 0.62 + Double(index) / Double(pixels - 1) * 0.38
+                let point = wave(t)
+                let progress = Double(index) / Double(pixels - 1)
+                let dot = thickness * (0.58 + 0.30 * progress)
+
+                if !monochrome {
+                    context.blendMode = .plusLighter
+                    let halo = dot * 3.6
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: point.x - halo, y: point.y - halo,
+                                               width: halo * 2, height: halo * 2)),
+                        with: .radialGradient(
+                            Gradient(stops: [
+                                .init(color: Brand.accent.opacity((0.20 + 0.55 * progress) * lit),
+                                      location: 0),
+                                .init(color: Brand.accent.opacity(0), location: 1),
+                            ]),
+                            center: point, startRadius: 0, endRadius: halo))
+                    context.blendMode = .normal
+                }
+
+                let tint: Color = monochrome
+                    ? .black
+                    : Color(hue: 0.075, saturation: 0.85 - 0.85 * progress, brightness: 1)
                 context.fill(
-                    Path(ellipseIn: CGRect(x: tip.x - halo, y: tip.y - halo,
-                                           width: halo * 2, height: halo * 2)),
-                    with: .radialGradient(
-                        Gradient(stops: [
-                            .init(color: Brand.accent.opacity(0.75 * lit), location: 0),
-                            .init(color: Brand.accent.opacity(0), location: 1),
-                        ]),
-                        center: tip, startRadius: 0, endRadius: halo))
-                context.blendMode = .normal
+                    Path(ellipseIn: CGRect(x: point.x - dot, y: point.y - dot,
+                                           width: dot * 2, height: dot * 2)),
+                    with: .color(tint))
             }
-            context.fill(
-                Path(ellipseIn: CGRect(x: tip.x - dot, y: tip.y - dot,
-                                       width: dot * 2, height: dot * 2)),
-                with: .color(monochrome ? .black : .white))
         }
     }
 }

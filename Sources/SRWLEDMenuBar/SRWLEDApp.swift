@@ -50,6 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct SRWLEDApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = AppModel.shared
+    @Environment(\.openWindow) private var openWindow
+
+    private func openAbout() {
+        openWindow(id: "about")
+    }
 
     var body: some Scene {
         // Главное окно: значок в Dock, крупная визуализация, все настройки.
@@ -59,7 +64,15 @@ struct SRWLEDApp: App {
         .defaultSize(width: 900, height: 560)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .appInfo) {
+                Button("О программе Auralis") { openAbout() }
+            }
         }
+
+        Window("О программе", id: "about") {
+            AboutWindow(model: model)
+        }
+        .windowResizability(.contentSize)
 
         // Значок в строке меню делает StatusItemController на AppKit:
         // сцена MenuBarExtra в этом приложении элемент не создаёт вовсе.

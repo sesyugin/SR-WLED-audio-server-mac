@@ -331,14 +331,14 @@ public struct VolumetricVisualizer: View {
 
 /// Частицы, изображающие уходящие в сеть пакеты. Появляются тем чаще,
 /// чем выше настоящая частота отправки.
-final class MoteField {
-    struct Mote {
-        var angle: Double
-        var progress: Double
-        var speed: Double
+public final class MoteField {
+    public struct Mote {
+        public var angle: Double
+        public var progress: Double
+        public var speed: Double
     }
 
-    private(set) var items: [Mote] = []
+    public private(set) var items: [Mote] = []
     private var lastTime: TimeInterval = 0
     private var spawnAccumulator: Double = 0
     private var seed: UInt64 = 0x9E3779B97F4A7C15
@@ -348,7 +348,9 @@ final class MoteField {
         return Double(UInt32(truncatingIfNeeded: seed >> 33)) / Double(UInt32.max)
     }
 
-    func step(time: TimeInterval, energy: Double, rate: Double, running: Bool) {
+    public init() {}
+
+    public func step(time: TimeInterval, energy: Double, rate: Double, running: Bool) {
         let delta = lastTime == 0 ? 1.0 / 60.0 : min(0.1, max(0.0001, time - lastTime))
         lastTime = time
 

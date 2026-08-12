@@ -7,8 +7,8 @@ import SRWLEDVisuals
 
 @MainActor
 func render(name: String, bands: [Float], peaks: [Float], palette: Palette, size: CGSize) {
-    let view = VolumetricVisualizer(sampler: { bands }, isRunning: true,
-                                    palette: palette, packetsPerSecond: 47)
+    let view = StageScene(sampler: { bands }, isRunning: true,
+                          palette: palette, packetsPerSecond: 47)
         .frame(width: size.width, height: size.height)
 
     let renderer = ImageRenderer(content: view)
@@ -71,7 +71,7 @@ let music: [Float] = [0.85, 0.72, 0.55, 0.48, 0.62, 0.40, 0.35, 0.44,
 let loud: [Float] = [1.0, 0.95, 0.80, 0.62, 0.70, 0.55, 0.50, 0.58,
                      0.45, 0.52, 0.40, 0.46, 0.34, 0.40, 0.28, 0.24]
 
-let size = CGSize(width: 620, height: 520)
+let size = CGSize(width: 760, height: 520)
 
 MainActor.assumeIsolated {
     render(name: "quiet", bands: quiet, peaks: quiet, palette: .amber, size: size)
