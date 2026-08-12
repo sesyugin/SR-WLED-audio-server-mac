@@ -14,12 +14,14 @@ concurrency:
 
 jobs:
   build:
-    # macOS 14 — минимальная версия, где есть CoreAudio process tap,
-    # то есть та же граница, что объявлена в Package.swift.
-    runs-on: macos-14
+    # Версия раннера — не про нижнюю границу macOS, а про набор инструментов.
+    # Нижнюю границу держит `platforms: [.macOS("14.2")]` в самом пакете, и она
+    # соблюдается на любой машине сборки. На macos-14 стоит Swift 5.10, а пакет
+    # объявлен на инструментах 6.0 — там сборка падает, не начавшись.
+    runs-on: macos-15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Версия Swift
         run: swift --version
