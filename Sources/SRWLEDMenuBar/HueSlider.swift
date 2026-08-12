@@ -21,7 +21,11 @@ struct HueSlider: View {
     var body: some View {
         GeometryReader { geometry in
             let width = max(1, geometry.size.width)
-            let knobX = width * shown
+            // Тон — Double, ширина — CGFloat. Пока их перемножали как есть,
+            // компилятор постарше объявлял неоднозначным всякое деление ниже
+            // по цепочке: у CGFloat и Double одинаковые операторы, и выбрать
+            // между ними ему было нечем.
+            let knobX = width * CGFloat(shown)
 
             ZStack(alignment: .leading) {
                 Capsule()
