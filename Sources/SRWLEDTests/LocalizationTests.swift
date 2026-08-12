@@ -73,3 +73,66 @@ func runLocalizationTests(_ t: TestRunner) {
         }
     }
 }
+
+/// Диагностика на чужом языке.
+///
+/// Отдельный набор: строки диагностики раньше были вписаны в код по-русски
+/// в обход таблицы, и ни один тест этого не ловил — на всех шестнадцати языках
+/// самый нужный экран оставался русским.
+func runDiagnosticsLanguageTests(_ t: TestRunner) {
+    t.suite("Диагностика говорит на языке интерфейса") { t in
+
+        let endpoint = [Endpoint(host: "192.168.1.50", port: 11988)]
+
+        t.test("Заголовки строк переводятся") { t in
+            for language in [Language.english, .german, .chinese, .swedish] {
+                let d = Diagnostics.make(captureRunning: true, digitalSilenceSeconds: 0,
+                                         deviceName: "Speakers", sampleRate: 48000,
+                                         endpoints: endpoint, packetsPerSecond: 47,
+                                         networkError: nil, bandsAlive: true,
+                                         language: language)
+                t.expectEqual(d.lines[0].title, L10n.string(.diagSystemAudio, language),
+                              "\(language.rawValue): заголовок первой строки")
+                t.expectEqual(d.lines[2].title, L10n.string(.diagSending, language),
+                              "\(language.rawValue): заголовок строки отправки")
+            }
+        }
+
+        t.test("Ни одна строка не остаётся русской на английском") { t in
+            let d = Diagnostics.make(captureRunning: false, digitalSilenceSeconds: 30,
+                                     deviceName: "Speakers", sampleRate: 48000,
+                                     endpoints: [], packetsPerSecond: 0,
+                                     networkError: nil, bandsAlive: false,
+                                     language: .english)
+            let cyrillic = CharacterSet(charactersIn: "абвгдежзийклмнопрстуфхцчшщъыьэюя")
+            for line in d.lines {
+                let all = line.title + line.detail + line.advice
+                t.expect(all.lowercased().rangeOfCharacter(from: cyrillic) == nil,
+                         "в английской диагностике осталась кириллица: «\(all)»")
+            }
+        }
+
+        t.test("Подстановки доходят до готовой строки") { t in
+            let d = Diagnostics.make(captureRunning: true, digitalSilenceSeconds: 0,
+                                     deviceName: "Studio Display", sampleRate: 44100,
+                                     endpoints: endpoint, packetsPerSecond: 47,
+                                     networkError: nil, bandsAlive: true,
+                                     language: .english)
+            t.expect(d.lines[0].detail.contains("Studio Display"), "имя устройства")
+            t.expect(d.lines[0].detail.contains("44100"), "частота дискретизации")
+            t.expect(!d.lines[0].detail.contains("%@"), "подстановка не осталась незаполненной")
+            t.expect(d.lines[2].detail.contains("47"), "частота отправки")
+        }
+
+        t.test("Отчёт для буфера обмена переведён целиком") { t in
+            let d = Diagnostics.make(captureRunning: true, digitalSilenceSeconds: 0,
+                                     deviceName: "Speakers", sampleRate: 48000,
+                                     endpoints: endpoint, packetsPerSecond: 47,
+                                     networkError: nil, bandsAlive: true,
+                                     language: .german)
+            let text = d.asText(language: .german)
+            t.expect(text.contains(L10n.string(.diagTitle, .german)), "заголовок отчёта")
+            t.expect(text.contains(L10n.string(.diagOK, .german)), "вердикт переведён")
+        }
+    }
+}

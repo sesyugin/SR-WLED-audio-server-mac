@@ -96,7 +96,12 @@ public enum S: String, CaseIterable, Sendable {
     case diagNotRunning, diagAllZeroes, diagPermissionAdvice, diagBandsFlowing
     case diagBandsEmpty, diagBandsEmptyAdvice, diagNoTargets, diagNoTargetsAdvice
     case diagNetworkAdvice, diagNotSending, diagAppearsAfterStart
+    case diagSource, diagSendingRate, diagDevicesUnchecked, diagDevicesAdvice, diagTitle
     case captureRestarted
+
+    // Управление поверх сцены
+    case columnColour, animationOn, animationOff, quality, qualityFull, qualityLight
+    case resetColour
 }
 
 /// Переводы. Английский — опорный: если ключа нет в другом языке, берётся он.
@@ -109,6 +114,21 @@ public enum L10n {
 
     @MainActor public static func callAsFunction(_ key: S) -> String {
         string(key, current)
+    }
+
+    /// Строка с подстановками. Каждый `%@` по порядку заменяется своим значением.
+    ///
+    /// Своя подстановка, а не `String(format:)`, по двум причинам: формат тут
+    /// всегда `%@`, а чужая строка с лишним `%d` из перевода уронила бы процесс.
+    /// Лишние значения отбрасываются, недостающие оставляют `%@` на месте —
+    /// перевод с потерянной подстановкой должен быть заметен, а не тих.
+    public static func string(_ key: S, _ language: Language, _ values: [String]) -> String {
+        var result = string(key, language)
+        for value in values {
+            guard let range = result.range(of: "%@") else { break }
+            result.replaceSubrange(range, with: value)
+        }
+        return result
     }
 
     public static let table: [Language: [S: String]] = [
@@ -157,6 +177,14 @@ public enum L10n {
             .diagNotSending: "packets are not going out",
             .diagAppearsAfterStart: "appears after start",
             .captureRestarted: "Capture rebuilt",
+            .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ pkt/s to %@ addr.",
+            .diagDevicesUnchecked: "state not checked",
+            .diagDevicesAdvice: "Search for strips to check them",
+            .diagTitle: "Auralis — diagnostics",
+            .columnColour: "Column colour", .animationOn: "Animation on",
+            .animationOff: "Animation off", .quality: "Quality",
+            .qualityFull: "Full", .qualityLight: "Light",
+            .resetColour: "Reset",
         ],
 
         .russian: [
@@ -203,6 +231,14 @@ public enum L10n {
             .diagNotSending: "пакеты не уходят",
             .diagAppearsAfterStart: "появится после запуска",
             .captureRestarted: "Захват пересобран",
+            .diagSource: "%@, %@ Гц", .diagSendingRate: "%@ пак/с на %@ адр.",
+            .diagDevicesUnchecked: "состояние не проверялось",
+            .diagDevicesAdvice: "Запусти поиск лент, чтобы их проверить",
+            .diagTitle: "Auralis — диагностика",
+            .columnColour: "Цвет столбиков", .animationOn: "Анимация включена",
+            .animationOff: "Анимация выключена", .quality: "Качество",
+            .qualityFull: "Полное", .qualityLight: "Лёгкое",
+            .resetColour: "Сбросить",
         ],
 
         .chinese: [
@@ -248,6 +284,14 @@ public enum L10n {
             .diagNotSending: "数据包没有发出",
             .diagAppearsAfterStart: "启动后显示",
             .captureRestarted: "采集已重建",
+            .diagSource: "%@，%@ 赫兹", .diagSendingRate: "%@ 包/秒 发往 %@ 个地址",
+            .diagDevicesUnchecked: "状态未检查",
+            .diagDevicesAdvice: "搜索灯带以进行检查",
+            .diagTitle: "Auralis — 诊断",
+            .columnColour: "柱状图颜色", .animationOn: "动画已开启",
+            .animationOff: "动画已关闭", .quality: "画质",
+            .qualityFull: "完整", .qualityLight: "轻量",
+            .resetColour: "重置",
         ],
 
         .hindi: [
@@ -294,6 +338,14 @@ public enum L10n {
             .diagNotSending: "पैकेट नहीं जा रहे",
             .diagAppearsAfterStart: "शुरू करने पर दिखेगा",
             .captureRestarted: "कैप्चर फिर से बनाया गया",
+            .diagSource: "%@, %@ हर्ट्ज़", .diagSendingRate: "%@ पैकेट/से %@ पतों पर",
+            .diagDevicesUnchecked: "स्थिति जाँची नहीं गई",
+            .diagDevicesAdvice: "जाँचने के लिए स्ट्रिप खोजें",
+            .diagTitle: "Auralis — निदान",
+            .columnColour: "स्तंभ रंग", .animationOn: "एनिमेशन चालू",
+            .animationOff: "एनिमेशन बंद", .quality: "गुणवत्ता",
+            .qualityFull: "पूर्ण", .qualityLight: "हल्की",
+            .resetColour: "रीसेट",
         ],
 
         .spanish: [
@@ -340,6 +392,14 @@ public enum L10n {
             .diagNotSending: "los paquetes no salen",
             .diagAppearsAfterStart: "aparece tras iniciar",
             .captureRestarted: "Captura reconstruida",
+            .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ paq/s a %@ dir.",
+            .diagDevicesUnchecked: "estado sin comprobar",
+            .diagDevicesAdvice: "Busca tiras para comprobarlas",
+            .diagTitle: "Auralis — diagnóstico",
+            .columnColour: "Color de las barras", .animationOn: "Animación activada",
+            .animationOff: "Animación desactivada", .quality: "Calidad",
+            .qualityFull: "Completa", .qualityLight: "Ligera",
+            .resetColour: "Restablecer",
         ],
 
         .french: [
@@ -386,6 +446,14 @@ public enum L10n {
             .diagNotSending: "les paquets ne partent pas",
             .diagAppearsAfterStart: "apparaît après le démarrage",
             .captureRestarted: "Capture reconstruite",
+            .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ paq/s vers %@ adr.",
+            .diagDevicesUnchecked: "état non vérifié",
+            .diagDevicesAdvice: "Lance une recherche de rubans pour les vérifier",
+            .diagTitle: "Auralis — diagnostic",
+            .columnColour: "Couleur des barres", .animationOn: "Animation activée",
+            .animationOff: "Animation désactivée", .quality: "Qualité",
+            .qualityFull: "Complète", .qualityLight: "Légère",
+            .resetColour: "Réinitialiser",
         ],
 
         .arabic: [
@@ -432,6 +500,14 @@ public enum L10n {
             .diagNotSending: "الحزم لا تُرسل",
             .diagAppearsAfterStart: "يظهر بعد التشغيل",
             .captureRestarted: "أُعيد بناء الالتقاط",
+            .diagSource: "%@، %@ هرتز", .diagSendingRate: "%@ حزمة/ث إلى %@ عنوان",
+            .diagDevicesUnchecked: "الحالة غير مفحوصة",
+            .diagDevicesAdvice: "ابحث عن الأشرطة لفحصها",
+            .diagTitle: "Auralis — التشخيص",
+            .columnColour: "لون الأعمدة", .animationOn: "الحركة مفعّلة",
+            .animationOff: "الحركة متوقفة", .quality: "الجودة",
+            .qualityFull: "كاملة", .qualityLight: "خفيفة",
+            .resetColour: "إعادة تعيين",
         ],
 
         .bengali: [
@@ -478,6 +554,14 @@ public enum L10n {
             .diagNotSending: "প্যাকেট যাচ্ছে না",
             .diagAppearsAfterStart: "চালু করার পরে দেখা যাবে",
             .captureRestarted: "ক্যাপচার পুনর্গঠিত",
+            .diagSource: "%@, %@ হার্টজ", .diagSendingRate: "%@ প্যাকেট/সে %@ ঠিকানায়",
+            .diagDevicesUnchecked: "অবস্থা যাচাই করা হয়নি",
+            .diagDevicesAdvice: "যাচাই করতে স্ট্রিপ খুঁজুন",
+            .diagTitle: "Auralis — নির্ণয়",
+            .columnColour: "কলামের রং", .animationOn: "অ্যানিমেশন চালু",
+            .animationOff: "অ্যানিমেশন বন্ধ", .quality: "মান",
+            .qualityFull: "পূর্ণ", .qualityLight: "হালকা",
+            .resetColour: "রিসেট",
         ],
 
         .portuguese: [
@@ -524,6 +608,14 @@ public enum L10n {
             .diagNotSending: "os pacotes não saem",
             .diagAppearsAfterStart: "aparece após iniciar",
             .captureRestarted: "Captura reconstruída",
+            .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ pac/s para %@ end.",
+            .diagDevicesUnchecked: "estado não verificado",
+            .diagDevicesAdvice: "Procure fitas para verificá-las",
+            .diagTitle: "Auralis — diagnóstico",
+            .columnColour: "Cor das barras", .animationOn: "Animação ligada",
+            .animationOff: "Animação desligada", .quality: "Qualidade",
+            .qualityFull: "Completa", .qualityLight: "Leve",
+            .resetColour: "Redefinir",
         ],
 
         .urdu: [
@@ -570,6 +662,14 @@ public enum L10n {
             .diagNotSending: "پیکٹ نہیں جا رہے",
             .diagAppearsAfterStart: "شروع کرنے پر ظاہر ہوگا",
             .captureRestarted: "کیپچر دوبارہ بنایا گیا",
+            .diagSource: "%@، %@ ہرٹز", .diagSendingRate: "%@ پیکٹ/سیکنڈ %@ پتوں پر",
+            .diagDevicesUnchecked: "حالت جانچی نہیں گئی",
+            .diagDevicesAdvice: "جانچنے کے لیے سٹرپس تلاش کریں",
+            .diagTitle: "Auralis — تشخیص",
+            .columnColour: "کالم کا رنگ", .animationOn: "اینیمیشن آن",
+            .animationOff: "اینیمیشن آف", .quality: "معیار",
+            .qualityFull: "مکمل", .qualityLight: "ہلکا",
+            .resetColour: "ری سیٹ",
         ],
 
         .indonesian: [
@@ -616,6 +716,14 @@ public enum L10n {
             .diagNotSending: "paket tidak terkirim",
             .diagAppearsAfterStart: "muncul setelah dimulai",
             .captureRestarted: "Perekaman dibangun ulang",
+            .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ paket/dtk ke %@ alamat",
+            .diagDevicesUnchecked: "status belum diperiksa",
+            .diagDevicesAdvice: "Cari strip untuk memeriksanya",
+            .diagTitle: "Auralis — diagnostik",
+            .columnColour: "Warna batang", .animationOn: "Animasi aktif",
+            .animationOff: "Animasi mati", .quality: "Kualitas",
+            .qualityFull: "Penuh", .qualityLight: "Ringan",
+            .resetColour: "Atur ulang",
         ],
 
         .german: [
@@ -662,6 +770,14 @@ public enum L10n {
             .diagNotSending: "es gehen keine Pakete hinaus",
             .diagAppearsAfterStart: "erscheint nach dem Start",
             .captureRestarted: "Aufnahme neu aufgebaut",
+            .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ Pak/s an %@ Adr.",
+            .diagDevicesUnchecked: "Zustand nicht geprüft",
+            .diagDevicesAdvice: "Suche nach Streifen, um sie zu prüfen",
+            .diagTitle: "Auralis — Diagnose",
+            .columnColour: "Farbe der Balken", .animationOn: "Animation an",
+            .animationOff: "Animation aus", .quality: "Qualität",
+            .qualityFull: "Voll", .qualityLight: "Leicht",
+            .resetColour: "Zurücksetzen",
         ],
 
         .ukrainian: [
@@ -708,6 +824,14 @@ public enum L10n {
             .diagNotSending: "пакети не йдуть",
             .diagAppearsAfterStart: "з’явиться після запуску",
             .captureRestarted: "Захоплення перезібрано",
+            .diagSource: "%@, %@ Гц", .diagSendingRate: "%@ пак/с на %@ адр.",
+            .diagDevicesUnchecked: "стан не перевірявся",
+            .diagDevicesAdvice: "Запусти пошук стрічок, щоб їх перевірити",
+            .diagTitle: "Auralis — діагностика",
+            .columnColour: "Колір стовпчиків", .animationOn: "Анімацію увімкнено",
+            .animationOff: "Анімацію вимкнено", .quality: "Якість",
+            .qualityFull: "Повна", .qualityLight: "Легка",
+            .resetColour: "Скинути",
         ],
 
         .italian: [
@@ -754,6 +878,14 @@ public enum L10n {
             .diagNotSending: "i pacchetti non partono",
             .diagAppearsAfterStart: "compare dopo l’avvio",
             .captureRestarted: "Acquisizione ricostruita",
+            .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ pacch/s a %@ ind.",
+            .diagDevicesUnchecked: "stato non verificato",
+            .diagDevicesAdvice: "Cerca le strisce per verificarle",
+            .diagTitle: "Auralis — diagnostica",
+            .columnColour: "Colore delle barre", .animationOn: "Animazione attiva",
+            .animationOff: "Animazione disattivata", .quality: "Qualità",
+            .qualityFull: "Completa", .qualityLight: "Leggera",
+            .resetColour: "Ripristina",
         ],
 
         .swedish: [
@@ -800,6 +932,14 @@ public enum L10n {
             .diagNotSending: "paketen skickas inte",
             .diagAppearsAfterStart: "visas efter start",
             .captureRestarted: "Inspelningen byggdes om",
+            .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ paket/s till %@ adr.",
+            .diagDevicesUnchecked: "tillstånd ej kontrollerat",
+            .diagDevicesAdvice: "Sök efter slingor för att kontrollera dem",
+            .diagTitle: "Auralis — diagnostik",
+            .columnColour: "Färg på staplarna", .animationOn: "Animation på",
+            .animationOff: "Animation av", .quality: "Kvalitet",
+            .qualityFull: "Full", .qualityLight: "Lätt",
+            .resetColour: "Återställ",
         ],
 
         .belarusian: [
@@ -846,6 +986,14 @@ public enum L10n {
             .diagNotSending: "пакеты не ідуць",
             .diagAppearsAfterStart: "з’явіцца пасля запуску",
             .captureRestarted: "Захоп перазабраны",
+            .diagSource: "%@, %@ Гц", .diagSendingRate: "%@ пак/с на %@ адр.",
+            .diagDevicesUnchecked: "стан не правяраўся",
+            .diagDevicesAdvice: "Запусці пошук стужак, каб іх праверыць",
+            .diagTitle: "Auralis — дыягностыка",
+            .columnColour: "Колер слупкоў", .animationOn: "Анімацыя ўключана",
+            .animationOff: "Анімацыя выключана", .quality: "Якасць",
+            .qualityFull: "Поўная", .qualityLight: "Лёгкая",
+            .resetColour: "Скінуць",
         ],
     ]
 }

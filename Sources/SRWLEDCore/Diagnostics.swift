@@ -9,10 +9,18 @@ import Foundation
 public struct Diagnostics: Sendable, Equatable {
 
     public enum Verdict: String, Sendable {
-        case ok = "в порядке"
-        case warning = "внимание"
-        case failure = "не работает"
-        case unknown = "неизвестно"
+        case ok, warning, failure, unknown
+
+        /// Ключ перевода. Вердикт печатается в отчёте, который человек копирует
+        /// и кому-то отправляет, — печататься он обязан на языке интерфейса.
+        public var key: S {
+            switch self {
+            case .ok: return .diagOK
+            case .warning: return .diagWarning
+            case .failure: return .diagFailure
+            case .unknown: return .diagUnknown
+            }
+        }
     }
 
     public struct Line: Sendable, Equatable {
@@ -45,6 +53,12 @@ public struct Diagnostics: Sendable, Equatable {
 
     /// Собирает диагностику из наблюдаемых фактов.
     ///
+    /// Язык передаётся снаружи, а не берётся из глобального состояния: сборка
+    /// идёт не на главном потоке, а `L10n.current` живёт на нём. Раньше строки
+    /// были вписаны сюда по-русски прямо в коде, и диагностика оставалась
+    /// русской на всех шестнадцати языках — самое нужное место в приложении
+    /// становилось нечитаемым ровно тогда, когда оно понадобилось.
+    ///
     /// - Parameters:
     ///   - captureRunning: захват запущен и tap создан
     ///   - digitalSilenceSeconds: сколько длится идеальная цифровая тишина при работающем захвате
@@ -54,6 +68,7 @@ public struct Diagnostics: Sendable, Equatable {
     ///   - packetsPerSecond: фактическая частота отправки
     ///   - networkError: последняя ошибка отправки, если была
     ///   - bandsAlive: хоть одна полоса ненулевая
+    ///   - language: язык интерфейса
     public static func make(captureRunning: Bool,
                             digitalSilenceSeconds: Double,
                             deviceName: String,
@@ -61,83 +76,94 @@ public struct Diagnostics: Sendable, Equatable {
                             endpoints: [Endpoint],
                             packetsPerSecond: Int,
                             networkError: String?,
-                            bandsAlive: Bool) -> Diagnostics
+                            bandsAlive: Bool,
+                            language: Language = .english) -> Diagnostics
     {
+        func text(_ key: S, _ values: [String] = []) -> String {
+            L10n.string(key, language, values)
+        }
+
         var lines = [Line]()
 
         // 1. Системный звук
         if !captureRunning {
-            lines.append(Line(title: "Системный звук",
+            lines.append(Line(title: text(.diagSystemAudio),
                               verdict: .unknown,
-                              detail: "захват не запущен"))
+                              detail: text(.diagNotRunning)))
         } else if digitalSilenceSeconds > 10 {
             // macOS при отказе в разрешении не отдаёт ни ошибки, ни события —
             // просто кладёт в буфер нули, и всё выглядит работающим.
-            lines.append(Line(title: "Системный звук",
+            lines.append(Line(title: text(.diagSystemAudio),
                               verdict: .failure,
-                              detail: "в буфере \(Int(digitalSilenceSeconds)) с одних нулей",
-                              advice: "Скорее всего не выдано разрешение на запись системного звука"))
+                              detail: text(.diagAllZeroes, ["\(Int(digitalSilenceSeconds))"]),
+                              advice: text(.diagPermissionAdvice)))
         } else {
-            lines.append(Line(title: "Системный звук",
+            lines.append(Line(title: text(.diagSystemAudio),
                               verdict: .ok,
-                              detail: "\(deviceName), \(Int(sampleRate)) Гц"))
+                              detail: text(.diagSource, [deviceName, "\(Int(sampleRate))"])))
         }
 
         // 2. Обработка
         if !captureRunning {
-            lines.append(Line(title: "Обработка",
+            lines.append(Line(title: text(.diagProcessing),
                               verdict: .unknown,
-                              detail: "не запущена"))
+                              detail: text(.diagNotRunning)))
         } else if bandsAlive {
-            lines.append(Line(title: "Обработка", verdict: .ok, detail: "полосы заполняются"))
+            lines.append(Line(title: text(.diagProcessing),
+                              verdict: .ok,
+                              detail: text(.diagBandsFlowing)))
         } else {
-            lines.append(Line(title: "Обработка",
+            lines.append(Line(title: text(.diagProcessing),
                               verdict: .warning,
-                              detail: "все полосы нулевые",
-                              advice: "Либо сейчас тишина, либо сигнал не доходит до анализа"))
+                              detail: text(.diagBandsEmpty),
+                              advice: text(.diagBandsEmptyAdvice)))
         }
 
         // 3. Отправка
         if endpoints.isEmpty {
-            lines.append(Line(title: "Отправка",
+            lines.append(Line(title: text(.diagSending),
                               verdict: .failure,
-                              detail: "адресаты не заданы",
-                              advice: "Укажи адреса лент или выбери широковещательный режим"))
+                              detail: text(.diagNoTargets),
+                              advice: text(.diagNoTargetsAdvice)))
         } else if let networkError {
-            lines.append(Line(title: "Отправка",
+            lines.append(Line(title: text(.diagSending),
                               verdict: .failure,
                               detail: networkError,
-                              advice: "Проверь, что мак в той же сети, что и ленты"))
+                              advice: text(.diagNetworkAdvice)))
         } else if !captureRunning {
-            lines.append(Line(title: "Отправка",
+            lines.append(Line(title: text(.diagSending),
                               verdict: .unknown,
                               detail: endpoints.map(\.description).joined(separator: ", ")))
         } else if packetsPerSecond == 0 {
-            lines.append(Line(title: "Отправка",
+            lines.append(Line(title: text(.diagSending),
                               verdict: .failure,
-                              detail: "пакеты не уходят"))
+                              detail: text(.diagNotSending)))
         } else {
-            lines.append(Line(title: "Отправка",
+            lines.append(Line(title: text(.diagSending),
                               verdict: .ok,
-                              detail: "\(packetsPerSecond) пак/с на "
-                                    + "\(endpoints.count) \(endpoints.count == 1 ? "адрес" : "адреса")"))
+                              detail: text(.diagSendingRate,
+                                           ["\(packetsPerSecond)", "\(endpoints.count)"])))
         }
 
         // 4. Ленты — заполняется опросом устройств, пока их не спрашивали
-        lines.append(Line(title: "Ленты",
+        lines.append(Line(title: text(.diagDevices),
                           verdict: .unknown,
-                          detail: "состояние не проверялось",
-                          advice: "Проверка появится вместе с автопоиском устройств"))
+                          detail: text(.diagDevicesUnchecked),
+                          advice: text(.diagDevicesAdvice)))
 
         return Diagnostics(lines: lines)
     }
 
     /// Текст для кнопки «скопировать диагностику».
-    public func asText() -> String {
-        var text = "SR-WLED — диагностика\n"
+    ///
+    /// Отчёт человек копирует, чтобы кому-то показать, поэтому и заголовок,
+    /// и вердикты печатаются на языке интерфейса, а не на языке разработчика.
+    public func asText(language: Language = .english) -> String {
+        var text = L10n.string(.diagTitle, language) + "\n"
         text += String(repeating: "-", count: 40) + "\n"
         for line in lines {
-            text += "\(line.title): \(line.verdict.rawValue) — \(line.detail)\n"
+            let verdict = L10n.string(line.verdict.key, language)
+            text += "\(line.title): \(verdict) — \(line.detail)\n"
             if !line.advice.isEmpty {
                 text += "    \(line.advice)\n"
             }

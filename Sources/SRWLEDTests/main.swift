@@ -13,5 +13,6 @@ runDynamicsTests(runner)
 runStoreTests(runner)
 runDiscoveryTests(runner)
 runLocalizationTests(runner)
+runDiagnosticsLanguageTests(runner)
 
 exit(runner.summarize())

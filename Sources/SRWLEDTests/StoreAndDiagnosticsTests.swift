@@ -157,7 +157,8 @@ func runStoreTests(_ t: TestRunner) {
             let d = Diagnostics.make(captureRunning: true, digitalSilenceSeconds: 30,
                                      deviceName: "Колонки", sampleRate: 48000,
                                      endpoints: endpoint, packetsPerSecond: 47,
-                                     networkError: nil, bandsAlive: false)
+                                     networkError: nil, bandsAlive: false,
+                                     language: .russian)
             t.expectEqual(d.lines[0].verdict, .failure, "строка про звук")
             t.expect(d.lines[0].advice.contains("разрешение"),
                      "подсказка обязана назвать разрешение, а не молчать")

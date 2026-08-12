@@ -457,7 +457,8 @@ final class AppModel: ObservableObject {
             endpoints: sender.endpoints,
             packetsPerSecond: packetsPerSecond,
             networkError: sender.lastError,
-            bandsAlive: bands.contains { $0 > 0 })
+            bandsAlive: bands.contains { $0 > 0 },
+            language: language)
     }
 }
 

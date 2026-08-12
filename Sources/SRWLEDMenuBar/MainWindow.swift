@@ -274,7 +274,7 @@ struct MainWindow: View {
                 }
                 Button(model.localized(.copy)) {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(model.diagnostics.asText(), forType: .string)
+                    NSPasteboard.general.setString(model.diagnostics.asText(language: model.language), forType: .string)
                 }
                 .font(.system(size: 11))
             }
