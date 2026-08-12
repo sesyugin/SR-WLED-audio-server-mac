@@ -1,0 +1,61 @@
+import SwiftUI
+
+/// Гамма сцены. Одна тональность на всю картинку: глубина читается яркостью
+/// и затуханием, а разноцветье её только разрушает.
+public enum Palette: String, CaseIterable, Identifiable, Sendable {
+    case amber, ice, violet, mono
+
+    public var id: String { rawValue }
+
+    /// Тон в глубине и тон у зрителя.
+    public var hues: (deep: Double, hot: Double) {
+        switch self {
+        case .amber:  return (0.030, 0.105)
+        case .ice:    return (0.600, 0.505)
+        case .violet: return (0.755, 0.870)
+        case .mono:   return (0.000, 0.000)
+        }
+    }
+
+    public var saturation: Double { self == .mono ? 0 : 1 }
+
+    public var title: String {
+        switch self {
+        case .amber: return "Amber"
+        case .ice: return "Ice"
+        case .violet: return "Violet"
+        case .mono: return "Mono"
+        }
+    }
+}
+
+/// Плоская полоса спектра для строки меню.
+public struct SpectrumStrip: View {
+    public let bands: [Float]
+    public var barCount: Int
+
+    public init(bands: [Float], barCount: Int = 16) {
+        self.bands = bands
+        self.barCount = barCount
+    }
+
+    public var body: some View {
+        Canvas { context, size in
+            guard barCount > 0 else { return }
+            let gap: CGFloat = 1
+            let barWidth = (size.width - gap * CGFloat(barCount - 1)) / CGFloat(barCount)
+            guard barWidth > 0 else { return }
+
+            for index in 0..<barCount {
+                let value = index < bands.count ? CGFloat(bands[index]) : 0
+                let height = max(1, value * size.height)
+                let rect = CGRect(x: CGFloat(index) * (barWidth + gap),
+                                  y: size.height - height,
+                                  width: barWidth,
+                                  height: height)
+                context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 3),
+                             with: .color(.primary))
+            }
+        }
+    }
+}

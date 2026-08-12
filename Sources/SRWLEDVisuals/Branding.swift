@@ -140,27 +140,16 @@ public struct BrandLockup: View {
     }
 }
 
-/// Полотно иконки приложения: знак на фирменном тёмном фоне со свечением.
+/// Полотно иконки: только знак на прозрачном фоне, без подложки.
 public struct AppIconCanvas: View {
     public init() {}
 
     public var body: some View {
         GeometryReader { geometry in
             let side = min(geometry.size.width, geometry.size.height)
-            ZStack {
-                // Подложка со скруглением как у системных иконок, с полями по краю.
-                RoundedRectangle(cornerRadius: side * 0.225, style: .continuous)
-                    .fill(RadialGradient(
-                        colors: [Color(hue: 0.065, saturation: 0.60, brightness: 0.26),
-                                 Brand.ink],
-                        center: UnitPoint(x: 0.62, y: 0.34),
-                        startRadius: 0, endRadius: side * 0.85))
-
-                BrandMark()
-                    .frame(width: side * 0.78, height: side * 0.78)
-            }
-            .frame(width: side, height: side)
-            .padding(side * 0.055)
+            BrandMark()
+                .frame(width: side * 0.92, height: side * 0.92)
+                .frame(width: side, height: side)
         }
     }
 }

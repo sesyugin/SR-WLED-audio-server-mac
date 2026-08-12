@@ -22,18 +22,12 @@ struct MainWindow: View {
 
     private var stage: some View {
         ZStack {
-            StageScene(sampler: { model.sampleBands() },
-                       isRunning: model.isRunning,
-                       palette: model.palette,
-                       packetsPerSecond: model.packetsPerSecond)
+            WireScene(sampler: { model.sampleBands() },
+                      isRunning: model.isRunning,
+                      palette: model.palette)
                 .ignoresSafeArea()
 
             VStack {
-                HStack(alignment: .top) {
-                    BrandLockup()
-                    Spacer()
-                }
-                .padding(.bottom, 14)
                 stageHeader
                 Spacer()
                 if !model.isRunning { stagePrompt }

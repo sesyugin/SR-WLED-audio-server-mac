@@ -39,10 +39,9 @@ struct AboutWindow: View {
     private var header: some View {
         ZStack {
             // Живая сцена в шапке — приложение показывает себя само.
-            StageScene(sampler: { model.sampleBands() },
-                       isRunning: model.isRunning,
-                       palette: model.palette,
-                       packetsPerSecond: model.packetsPerSecond)
+            WireScene(sampler: { model.sampleBands() },
+                      isRunning: model.isRunning,
+                      palette: model.palette)
                 .frame(height: 170)
                 .clipped()
 
