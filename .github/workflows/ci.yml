@@ -23,6 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Самый новый Xcode на машине
+        # На образе их обычно несколько, и выбранный по умолчанию не всегда
+        # самый свежий. Пакет объявлен на инструментах 6.0 — на старых сборка
+        # падает, не начавшись.
+        run: |
+          newest=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          xcode-select -p
+
       - name: Версия Swift
         run: swift --version
 

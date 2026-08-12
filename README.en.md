@@ -10,7 +10,7 @@ Over the UDP audiosync v2 protocol. macOS 14.2+, no virtual audio driver require
 
 [Русский](README.md) · [Changelog](CHANGELOG.md) · [Origin and licences](NOTICE)
 
-<img src="docs/scene-crown.png" width="820" alt="Visualisation: a crown of spectrum columns around a stage">
+<img src="docs/screens/window.jpg" width="880" alt="The main window: the spectrum stage and the control panel">
 
 </div>
 
@@ -177,16 +177,48 @@ No test touches an audio device or sends a packet to a real network — they run
 synthetic data and a stub transport. Xcode is not required: the project uses its own
 runner, since XCTest and swift-testing ship only with Xcode.
 
-## Appearance
+## What it looks like
 
-The visualisation is drawn in code and comes in two palettes. The frames above and
-below are not mockups but the program's own output, laid down by `SRWLEDPreview` —
-the same code that draws the window.
+The panel is needed twice: when setting up, and when working out why a strip is
+dark. The rest of the time it takes a third of the width away from the thing the
+window was opened for — so it hides, with the button under the stage or ⌘⌃S.
+After three seconds of stillness the chrome over the stage goes too; any pointer
+movement brings it back.
 
-<img src="docs/scene-ice.png" width="820" alt="The same scene in the cold palette">
+<img src="docs/screens/watch-mode.jpg" width="880" alt="Watch mode: the panel is hidden and the stage fills the window">
+
+**Diagnostics along four axes.** Not one "not working" indicator but four
+independent ones: audio, processing, sending, the strips themselves. Each carries
+its own verdict and its own advice, and the button beside them puts the whole
+report on the clipboard — in the interface language.
+
+<img src="docs/screens/diagnostics.jpg" width="880" alt="The diagnostics tab: four axes with verdicts">
+
+**The processing is exposed.** Every difference from the Windows version is its
+own switch, and one checkbox brings the original behaviour back entirely. The
+difference can be judged by eye, on the strip itself.
+
+<img src="docs/screens/settings.jpg" width="880" alt="The settings tab: audio processing parameters">
+
+**Four scenes and four palettes,** and the column hue can also be taken from a
+slider — from the palette or your own across the whole circle.
+
+<p align="center">
+  <img src="docs/screens/look-ice.jpg" width="290" alt="Ice palette">
+  <img src="docs/screens/look-violet.jpg" width="290" alt="Violet palette">
+  <img src="docs/screens/look-mono.jpg" width="290" alt="Mono palette">
+</p>
+
+**Sixteen languages,** Arabic and Urdu included, with the layout mirrored. The
+system permission dialog is translated too — it is shown before the language
+inside the app can be chosen at all.
+
+<img src="docs/screens/window-ru.jpg" width="880" alt="The same window in Russian">
+
+Scene frames and the app mark can be drawn without launching anything, by the
+same code that draws the window:
 
 ```bash
-# scene frames and the app mark as PNG
 SRWLED_OUT=docs swift run -c release SRWLEDPreview
 ```
 
@@ -210,6 +242,9 @@ the network: 16 equaliser values and a few level numbers. The content of the sou
 cannot be reconstructed from them.
 
 ## Licence
+
+<img src="docs/screens/about.jpg" width="520" alt="The About window">
+
 
 Copyright © 2026 Zakhar Sesyugin. GPL-3.0, inherited from the original project.
 See [LICENSE](LICENSE) and [NOTICE](NOTICE).

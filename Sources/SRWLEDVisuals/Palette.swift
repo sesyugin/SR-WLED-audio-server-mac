@@ -30,7 +30,7 @@ public enum Palette: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// Плоская полоса спектра для строки меню.
-public struct SpectrumStrip: View, @MainActor Animatable {
+public struct SpectrumStrip: View, Animatable {
     public let bands: [Float]
     public var barCount: Int
 
@@ -47,7 +47,11 @@ public struct SpectrumStrip: View, @MainActor Animatable {
         self.ignition = ignition
     }
 
-    public var animatableData: Double {
+    // nonisolated, а не изолированное соответствие протоколу: последнее
+    // появилось только в Swift 6.2, и на инструментах постарше — тех, что стоят
+    // на раннерах, — файл переставал даже разбираться. Здесь оно и не нужно:
+    // SwiftUI интерполирует это значение сам, к главному актору не обращаясь.
+    nonisolated public var animatableData: Double {
         get { ignition }
         set { ignition = newValue }
     }
