@@ -72,7 +72,6 @@ public struct CrownScene: View {
         let base = min(size.width, size.height)
         let hues = palette.hues
         let energy = smoother.energy
-        let horizon = size.height * 0.72
 
         // Единственный источник в фоне — мягкий пул света под сценой.
         // Он даёт объекту опору и отделяет его от пустоты, но сам по себе
@@ -275,7 +274,8 @@ public struct CrownScene: View {
                                energy: energy,
                                bass: smoother.values.prefix(3).max() ?? 0,
                                air: smoother.values.suffix(4).max() ?? 0,
-                               beat: flash)
+                               beat: flash,
+                               time: time)
         var stageDrawn = false
 
         for lamp in lamps {
