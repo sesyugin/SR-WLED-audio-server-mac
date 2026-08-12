@@ -16,6 +16,12 @@ struct GlassStage {
     /// фигурам и порталу — это самая дорогая необязательная часть сцены,
     /// и в лёгком качестве её нет.
     var reflects: Bool = true
+    /// Тона сцены: тот же коридор, что у столбиков венца. Приходят снаружи,
+    /// а не берутся из палитры, потому что ползунок под сценой правит именно
+    /// их. Пока тона были вписаны сюда числами, ползунок перекрашивал одни
+    /// столбики: сцена, её свет и лучи оставались янтарными, и на глаз это
+    /// читалось так, будто цвет не меняется вовсе.
+    var hues: (deep: Double, lite: Double) = (0.032, 0.098)
     /// Общая громкость: от неё зависит накал льда.
     let energy: Double
     /// Бас: от него дышат колонки и бочка.
@@ -38,13 +44,31 @@ struct GlassStage {
         return levels[min(levels.count - 1, max(0, index))]
     }
 
+    /// Материал сцены в её тонах. Все тела строятся через него: у Material
+    /// тона свои по умолчанию, и заданные там числа пережили бы любой выбор
+    /// цвета снаружи.
+    private func material(saturation: Double, glow: Double,
+                          opacity: Double, shade: Double = 1) -> Solid3D.Material {
+        Solid3D.Material(deepHue: hues.deep, liteHue: hues.lite,
+                         saturation: saturation, glow: min(1, glow),
+                         opacity: opacity, shade: shade)
+    }
+
+    /// Цвет сцены по доле между её тонами: 0 — глубокий, 1 — светлый.
+    /// Доли получены из прежних чисел, чтобы картинка не поехала: каждый
+    /// прежний тон пересчитан в свою позицию внутри янтарного коридора.
+    private func tone(_ fraction: Double, saturation: Double, brightness: Double) -> Color {
+        Color(hue: hues.deep + (hues.lite - hues.deep) * fraction,
+              saturation: saturation, brightness: brightness)
+    }
+
     /// Стекло фигуры. `density` — плотность заливки: у всех она одна, и поднята
     /// только у вокалиста. Он единственный, кого судят по силуэту на голом полу:
     /// у остальных за спиной либо своя установка, либо портал, и они читаются
     /// перепадом с ними, а певец стоит один на самом тёмном месте подиума, где
     /// сквозное тело просто растворяется.
     private func ice(glow: Double, density: Double = 0.52) -> Solid3D.Material {
-        Solid3D.Material(saturation: 0.88, glow: min(1, glow), opacity: density)
+        material(saturation: 0.88, glow: min(1, glow), opacity: density)
     }
 
     // MARK: - Движение
@@ -338,7 +362,7 @@ struct GlassStage {
             // Двойник берёт цвет у стекла. Свет, дважды прошедший сквозь золотую
             // плиту, выходит уже её тона — без этого сложение давало бледный
             // серый налёт, и отражение под ногами читалось не золотом, а пылью.
-            glass.addFilter(.colorMultiply(Color(hue: 0.062, saturation: 0.52, brightness: 1)))
+            glass.addFilter(.colorMultiply(tone(0.455, saturation: 0.52, brightness: 1)))
             glass.drawLayer { inner in
                 for piece in echo {
                     piece.render(&inner)
@@ -358,10 +382,10 @@ struct GlassStage {
                              Gradient(stops: [
                                  .init(color: .clear, location: 0.0),
                                  .init(color: .clear, location: 0.34),
-                                 .init(color: Color(hue: 0.034, saturation: 0.90,
+                                 .init(color: tone(0.03, saturation: 0.90,
                                                     brightness: 0.055).opacity(0.22),
                                        location: 0.80),
-                                 .init(color: Color(hue: 0.030, saturation: 0.92,
+                                 .init(color: tone(-0.03, saturation: 0.92,
                                                     brightness: 0.040).opacity(0.30),
                                        location: 1.0),
                              ]),
@@ -379,10 +403,10 @@ struct GlassStage {
                          with: .linearGradient(
                              Gradient(stops: [
                                  .init(color: .clear, location: 0.52),
-                                 .init(color: Color(hue: 0.068, saturation: 0.86,
+                                 .init(color: tone(0.545, saturation: 0.86,
                                                     brightness: 1).opacity(0.030 + 0.030 * energy),
                                        location: 0.86),
-                                 .init(color: Color(hue: 0.058, saturation: 0.80,
+                                 .init(color: tone(0.394, saturation: 0.80,
                                                     brightness: 1).opacity(0.055 + 0.045 * energy),
                                        location: 1.0),
                              ]),
@@ -440,9 +464,9 @@ struct GlassStage {
                     Path(ellipseIn: hazeRect),
                     with: .linearGradient(
                         Gradient(stops: [
-                            .init(color: Color(hue: 0.052, saturation: 0.88,
+                            .init(color: tone(0.303, saturation: 0.88,
                                                brightness: 1).opacity(haze), location: 0.0),
-                            .init(color: Color(hue: 0.048, saturation: 0.90,
+                            .init(color: tone(0.242, saturation: 0.90,
                                                brightness: 1).opacity(haze * 0.62), location: 0.42),
                             .init(color: .clear, location: 0.86),
                         ]),
@@ -553,13 +577,13 @@ struct GlassStage {
         context.fill(apron,
                      with: .linearGradient(
                          Gradient(stops: [
-                             .init(color: Color(hue: 0.074, saturation: 0.64,
+                             .init(color: tone(0.636, saturation: 0.64,
                                                 brightness: 0.44), location: 0.0),
-                             .init(color: Color(hue: 0.056, saturation: 0.80,
+                             .init(color: tone(0.364, saturation: 0.80,
                                                 brightness: 0.27), location: 0.34),
-                             .init(color: Color(hue: 0.038, saturation: 0.93,
+                             .init(color: tone(0.091, saturation: 0.93,
                                                 brightness: 0.115), location: 0.78),
-                             .init(color: Color(hue: 0.030, saturation: 0.96,
+                             .init(color: tone(-0.03, saturation: 0.96,
                                                 brightness: 0.070), location: 1.0),
                          ]),
                          startPoint: CGPoint(x: apron.boundingRect.minX,
@@ -602,11 +626,11 @@ struct GlassStage {
             context.fill(belt,
                          with: .linearGradient(
                              Gradient(stops: [
-                                 .init(color: Color(hue: 0.048, saturation: 0.92, brightness: 1)
+                                 .init(color: tone(0.242, saturation: 0.92, brightness: 1)
                                      .opacity(band.alpha * (0.22 + 0.30 * energy)), location: 0.0),
-                                 .init(color: Color(hue: 0.058, saturation: 0.86, brightness: 1)
+                                 .init(color: tone(0.394, saturation: 0.86, brightness: 1)
                                      .opacity(band.alpha * (0.60 + 0.70 * energy)), location: 0.62),
-                                 .init(color: Color(hue: 0.070, saturation: 0.74, brightness: 1)
+                                 .init(color: tone(0.576, saturation: 0.74, brightness: 1)
                                      .opacity(band.alpha * (1.0 + 1.1 * energy)), location: 1.0),
                              ]),
                              startPoint: CGPoint(x: box.midX, y: box.minY),
@@ -643,7 +667,7 @@ struct GlassStage {
             context.stroke(edge,
                            with: .linearGradient(
                                Gradient(stops: [
-                                   .init(color: Color(hue: 0.072, saturation: 0.44, brightness: 1)
+                                   .init(color: tone(0.606, saturation: 0.44, brightness: 1)
                                        .opacity((0.040 + 0.052 * energy) * nearness), location: 0.0),
                                    .init(color: .clear, location: 1.0),
                                ]),
@@ -669,13 +693,13 @@ struct GlassStage {
                          Gradient(stops: [
                              // Дальний край светлее: он ближе к ферме и ловит
                              // её свет, а передний уходит в тень к зрителю.
-                             .init(color: Color(hue: 0.045, saturation: 0.80,
+                             .init(color: tone(0.197, saturation: 0.80,
                                                 brightness: 0.115 + 0.045 * energy),
                                    location: 0.0),
-                             .init(color: Color(hue: 0.038, saturation: 0.88,
+                             .init(color: tone(0.091, saturation: 0.88,
                                                 brightness: 0.080 + 0.030 * energy),
                                    location: 0.45),
-                             .init(color: Color(hue: 0.030, saturation: 0.94,
+                             .init(color: tone(-0.03, saturation: 0.94,
                                                 brightness: 0.042 + 0.016 * energy),
                                    location: 1.0),
                          ]),
@@ -747,12 +771,12 @@ struct GlassStage {
         context.blendMode = .plusLighter
         for (path, weight) in [(fine.near, 1.0), (fine.far, 0.45)] {
             context.stroke(path,
-                           with: .color(Color(hue: 0.072, saturation: 0.44, brightness: 1)
+                           with: .color(tone(0.606, saturation: 0.44, brightness: 1)
                                .opacity((0.020 + 0.020 * energy) * weight)),
                            style: StrokeStyle(lineWidth: max(0.5, base * 0.0006)))
         }
         context.stroke(major,
-                       with: .color(Color(hue: 0.076, saturation: 0.42, brightness: 1)
+                       with: .color(tone(0.667, saturation: 0.42, brightness: 1)
                            .opacity(0.030 + 0.032 * energy)),
                        style: StrokeStyle(lineWidth: max(0.7, base * 0.0009)))
 
@@ -798,9 +822,9 @@ struct GlassStage {
                      with: .linearGradient(
                          Gradient(stops: [
                              .init(color: .clear, location: 0.0),
-                             .init(color: Color(hue: 0.080, saturation: 0.30, brightness: 1)
+                             .init(color: tone(0.727, saturation: 0.30, brightness: 1)
                                  .opacity(0.030 + 0.045 * energy), location: 0.30),
-                             .init(color: Color(hue: 0.070, saturation: 0.44, brightness: 1)
+                             .init(color: tone(0.576, saturation: 0.44, brightness: 1)
                                  .opacity(0.010 + 0.018 * energy), location: 0.52),
                              .init(color: .clear, location: 0.80),
                          ]),
@@ -813,13 +837,13 @@ struct GlassStage {
         // это не украшение, а та же деталь, что и всё остальное на помосте.
         context.blendMode = .plusLighter
         context.stroke(disc,
-                       with: .color(Color(hue: 0.070, saturation: 0.55, brightness: 1)
+                       with: .color(tone(0.576, saturation: 0.55, brightness: 1)
                            .opacity(0.24 + 0.34 * energy)),
                        style: StrokeStyle(lineWidth: max(0.7, base * 0.0016)))
 
         // Отблеск на полу вокруг помоста: без него настил стоит на пустоте.
         context.stroke(deckRing(project, radius, 1, 0),
-                       with: .color(Color(hue: 0.045, saturation: 0.85, brightness: 1)
+                       with: .color(tone(0.197, saturation: 0.85, brightness: 1)
                            .opacity(0.07 + 0.10 * energy)),
                        style: StrokeStyle(lineWidth: max(0.5, base * 0.0011)))
 
@@ -850,9 +874,9 @@ struct GlassStage {
                            with: .linearGradient(
                                Gradient(stops: [
                                    .init(color: .clear, location: 0.0),
-                                   .init(color: Color(hue: 0.062, saturation: 0.80, brightness: 1)
+                                   .init(color: tone(0.455, saturation: 0.80, brightness: 1)
                                        .opacity(glow.alpha * (0.5 + 0.9 * energy)), location: 0.34),
-                                   .init(color: Color(hue: 0.062, saturation: 0.80, brightness: 1)
+                                   .init(color: tone(0.455, saturation: 0.80, brightness: 1)
                                        .opacity(glow.alpha * (0.5 + 0.9 * energy)), location: 0.66),
                                    .init(color: .clear, location: 1.0),
                                ]),
@@ -1243,9 +1267,9 @@ struct GlassStage {
                     // сплюснуто, и на его верхнем и нижнем краю раскладка иначе
                     // обрывается поперёк видимой полосой.
                     Gradient(stops: [
-                        .init(color: Color(hue: 0.090, saturation: 0.50, brightness: 1)
+                        .init(color: tone(0.879, saturation: 0.50, brightness: 1)
                             .opacity(0.078 * strength), location: 0),
-                        .init(color: Color(hue: 0.080, saturation: 0.62, brightness: 1)
+                        .init(color: tone(0.727, saturation: 0.62, brightness: 1)
                             .opacity(0.038 * strength), location: 0.45),
                         .init(color: .clear, location: 0.82),
                     ]),
@@ -1410,7 +1434,7 @@ struct GlassStage {
         // сцене его видно не блеском, а силуэтом на светлой руке. Тон при
         // этом остался холоднее льда фигуры: сталь отличается от стекла
         // тоном, а не яркостью.
-        let steel = Solid3D.Material(saturation: 0.62, glow: 0.30 + 0.26 * energy,
+        let steel = material(saturation: 0.62, glow: 0.30 + 0.26 * energy,
                                      opacity: 1.12, shade: 0.72)
         pieces.append(Solid3D.capsule(
             from: micHeel, to: along(0.80),
@@ -1606,16 +1630,16 @@ struct GlassStage {
         // Дерево корпуса плотное, в отличие от стеклянных фигур: сквозная дека
         // читалась мыльным пузырём на животе, а бледная — куском льда. Гитара
         // сделана того же густого золота, что бэклайн и барабаны.
-        let wood = Solid3D.Material(saturation: 0.92, glow: 0.44 + 0.40 * air, opacity: 1.24)
-        let neck = Solid3D.Material(saturation: 0.86, glow: 0.30 + 0.30 * air, opacity: 1.22)
+        let wood = material(saturation: 0.92, glow: 0.44 + 0.40 * air, opacity: 1.24)
+        let neck = material(saturation: 0.86, glow: 0.30 + 0.30 * air, opacity: 1.22)
         // Накладка грифа глуше самого грифа: по ширине на этой камере обе —
         // одна полоска в два пикселя, и различает их только перепад плотности.
-        let board = Solid3D.Material(saturation: 0.98, glow: 0.05, opacity: 0.80)
+        let board = material(saturation: 0.98, glow: 0.05, opacity: 0.80)
         // Железо наоборот ярче дерева: бридж и звукосниматель лежат поверх
         // светлой деки, и тёмными они бы на ней просто пропали.
-        let chrome = Solid3D.Material(saturation: 0.72, glow: 0.30 + 0.25 * air, opacity: 1.10)
-        let steel = Solid3D.Material(saturation: 0.44, glow: 0.88, opacity: 0.90)
-        let belt = Solid3D.Material(saturation: 0.90, glow: 0.10, opacity: 0.62)
+        let chrome = material(saturation: 0.72, glow: 0.30 + 0.25 * air, opacity: 1.10)
+        let steel = material(saturation: 0.44, glow: 0.88, opacity: 0.90)
+        let belt = material(saturation: 0.90, glow: 0.10, opacity: 0.62)
 
         // Корпус — два диска разного размера, разнесённых вдоль оси. Заходят
         // они друг за друга примерно на треть меньшего радиуса: ровно настолько,
@@ -1797,8 +1821,8 @@ struct GlassStage {
     {
         // Корпус того же густого золота, что бэклайн: прежняя серая плита
         // выпадала из гаммы и читалась куском пенопласта на палках.
-        let shell = Solid3D.Material(saturation: 0.90, glow: 0.16 + 0.30 * air, opacity: 1.28)
-        let cheek = Solid3D.Material(saturation: 0.84, glow: 0.24 + 0.34 * air, opacity: 1.28)
+        let shell = material(saturation: 0.90, glow: 0.16 + 0.30 * air, opacity: 1.28)
+        let cheek = material(saturation: 0.84, glow: 0.24 + 0.34 * air, opacity: 1.28)
         // Клавиши светлее корпуса, но остаются золотом — белым на этой сцене
         // бывает только блик. Оба ряда притемнены `shade`, множителем яркости:
         // тон от него не меняется, темнеет одна яркость.
@@ -1812,9 +1836,9 @@ struct GlassStage {
         // гранью — ряд загорался цепочкой рыжих огоньков ярче самих кулаков.
         // А различает ряды именно перепад тона: по размеру на этой камере
         // клавиша — три пикселя, и никакой формы у неё нет.
-        let ivory = Solid3D.Material(saturation: 0.80, glow: 0.22 + 0.26 * air,
+        let ivory = material(saturation: 0.80, glow: 0.22 + 0.26 * air,
                                      opacity: 1.20, shade: 0.82)
-        let ebony = Solid3D.Material(saturation: 0.98, glow: 0.02, opacity: 1.45, shade: 0.34)
+        let ebony = material(saturation: 0.98, glow: 0.02, opacity: 1.45, shade: 0.34)
         // Железо стойки притемнено множителем яркости, а не тоном: на кадре
         // трубы шли ровно тем же светом, что и голени человека за ними, и
         // четыре одинаковые палки читались не ногами при стойке, а мотком
@@ -1826,7 +1850,7 @@ struct GlassStage {
         // ровно то, чего на сцене быть не должно ни у одного тела. Плотность
         // поднята выше единицы, а притемнение усилено взамен: труба обязана
         // остаться темнее голеней человека за ней, но она обязана БЫТЬ.
-        let rack = Solid3D.Material(saturation: 0.72, glow: 0.08 + 0.14 * air,
+        let rack = material(saturation: 0.72, glow: 0.08 + 0.14 * air,
                                     opacity: 1.20, shade: 0.50)
         var pieces: [Solid3D.Piece] = []
 
@@ -2053,7 +2077,7 @@ struct GlassStage {
                 // включённых ламп, и взгляд уходил на них с самой установки.
                 // Накал оставлен, но сдержанный: палочка на ударе подсвечивается,
                 // а не загорается.
-                material: Solid3D.Material(saturation: 0.62, glow: 0.22 + 0.26 * beat,
+                material: material(saturation: 0.62, glow: 0.22 + 0.26 * beat,
                                            opacity: 0.86, shade: 0.92),
                 project: project, lineWidth: line))
         }
@@ -2094,30 +2118,30 @@ struct GlassStage {
         // обязаны быть третьими после людей и портала, а не первыми во всём
         // кадре. Форма от этого не теряется: она держится на перепаде граней
         // внутри самой установки, а он от общего притемнения не меняется.
-        let shell = Solid3D.Material(saturation: 0.86, glow: 0.22 + 0.34 * bass,
+        let shell = material(saturation: 0.86, glow: 0.22 + 0.34 * bass,
                                      opacity: 1.22, shade: 0.80)
         // Передний пластик бочки притемнён вдвое сильнее корпусов. Это самая
         // крупная плоскость установки, и она одна повёрнута к камере целиком:
         // на общем свету она выходила самым светлым пятном всей глубины сцены
         // и перетягивала взгляд с музыкантов на середину установки. Убавлен и
         // накал: у диска и так есть собственный блик от dish.
-        let head = Solid3D.Material(saturation: 0.82, glow: 0.16 + 0.24 * bass,
+        let head = material(saturation: 0.82, glow: 0.16 + 0.24 * bass,
                                     opacity: 1.20, shade: 0.64)
         // Два самых крупных корпуса — бочка и напольный том — притемнены
         // отдельно. Заливка граней у них та же, что у маленьких томов, но
         // площади вчетверо больше, и на общем свету они выходили двумя самыми
         // светлыми телами установки: глаз собирал кадр по ним, а не по человеку.
-        let bulk = Solid3D.Material(saturation: 0.86, glow: 0.19 + 0.30 * bass,
+        let bulk = material(saturation: 0.86, glow: 0.19 + 0.30 * bass,
                                     opacity: 1.22, shade: 0.72)
         // Железо стоек глушится непрозрачностью, а не тоном: у этого материала
         // яркость задаётся освещённостью, и притемнить трубку иначе нечем.
         // А глушить надо: тонких трубок в установке два десятка, и вместе они
         // дают больше света, чем все корпуса разом, — получался не бэклайн,
         // а моток проволоки, в котором где-то спрятаны барабаны.
-        let metal = Solid3D.Material(saturation: 0.72, glow: 0.10 + 0.20 * air, opacity: 0.44)
+        let metal = material(saturation: 0.72, glow: 0.10 + 0.20 * air, opacity: 0.44)
         // Тарелки — самая жёлтая латунь на сцене: по цвету они и отличаются
         // от пластиков, потому что по форме на этой камере и то и другое круг.
-        let brass = Solid3D.Material(saturation: 0.95, glow: 0.24 + 0.34 * air,
+        let brass = material(saturation: 0.95, glow: 0.24 + 0.34 * air,
                                      opacity: 0.88, shade: 0.86)
 
         /// Точка установки: вбок и вглубь — в долях роста, вверх — от пола.
@@ -2195,7 +2219,7 @@ struct GlassStage {
         // между бёдрами холодный серый клин — заплату в тёплом кадре, а не
         // сиденье. Тёмным его делает притемнение, тон при этом остаётся
         // золотым.
-        let stool = Solid3D.Material(saturation: 0.90, glow: 0.08 + 0.14 * air,
+        let stool = material(saturation: 0.90, glow: 0.08 + 0.14 * air,
                                      opacity: 1.20, shade: 0.60)
         pieces.append(Solid3D.cylinder(
             centre: kit(0, 0.300, 0.012), radius: unit * 0.142, height: tall * 0.032,
@@ -2337,7 +2361,7 @@ struct GlassStage {
         // и было предсказано в прошлый раз: белое ведро в углу установки,
         // самое светлое тело всей глубины сцены. Тон при этом не тронут —
         // сталь по-прежнему на 0.70 насыщенности против 0.86 у дерева.
-        let steel = Solid3D.Material(saturation: 0.70, glow: 0.10 + 0.16 * bass,
+        let steel = material(saturation: 0.70, glow: 0.10 + 0.16 * bass,
                                      opacity: 1.22, shade: 0.56)
         pieces += tripod(-0.372, -0.400, hub: 0.112, reach: 0.104)
         pieces.append(rod((-0.372, 0, -0.400), (-0.372, 0.262, -0.400), 0.013))
@@ -2402,11 +2426,11 @@ struct GlassStage {
         // на людях, и два таких прямоугольника в верхних углах держат взгляд
         // крепче любого из музыкантов. Портал должен обозначать границы
         // площадки, а не быть её самым светлым местом.
-        let cabinet = Solid3D.Material(saturation: 0.92, glow: 0.11 + 0.28 * bass,
+        let cabinet = material(saturation: 0.92, glow: 0.11 + 0.28 * bass,
                                        opacity: 1.30, shade: 0.56)
         // Диффузор темнее корпуса: светлый диск читался воздушным шаром,
         // вставленным в ящик, а не воронкой, утопленной в фасад.
-        let cone = Solid3D.Material(saturation: 0.74, glow: 0.24 + 0.40 * bass,
+        let cone = material(saturation: 0.74, glow: 0.24 + 0.40 * bass,
                                     opacity: 1.15, shade: 0.62)
         // Щели порта и рупора: тот же корпусной тон, но темнее и без блеска —
         // светлые полосы читались накладками из белого пластика.
@@ -2417,7 +2441,7 @@ struct GlassStage {
         // рамами, привинченными к ящику, — а рупор верхних кабинетов светлой
         // полосой во всю ширину. Тёмная щель в светлом фасаде опознаётся
         // портом с одного взгляда, светлая — не опознаётся вовсе.
-        let slot = Solid3D.Material(saturation: 0.80, glow: 0.22 + 0.40 * bass,
+        let slot = material(saturation: 0.80, glow: 0.22 + 0.40 * bass,
                                     opacity: 1.40, shade: 0.38)
         var pieces: [Solid3D.Piece] = []
 
@@ -2433,7 +2457,7 @@ struct GlassStage {
 
         // Железо подвеса: рамы и тяги между кабинетами. Тонкое и приглушённое —
         // на площадке это чёрный металл, и светиться ему нечем.
-        let rig = Solid3D.Material(saturation: 0.70, glow: 0.08 + 0.18 * air,
+        let rig = material(saturation: 0.70, glow: 0.08 + 0.18 * air,
                                    opacity: 0.62, shade: 0.66)
 
         // Тень уведена из-под стека: сверху ящик накрывает своё основание
@@ -2571,7 +2595,7 @@ struct GlassStage {
         // Непрозрачность заведена до самого верха шкалы глухости: при 1.12
         // заливка доходила до двух третей, и сквозь ферму просвечивал венец —
         // балка читалась не стальной, а нарисованной поверх ламп.
-        Solid3D.Material(saturation: 0.94, glow: 0.06 + 0.12 * air,
+        material(saturation: 0.94, glow: 0.06 + 0.12 * air,
                          opacity: 1.32, shade: 0.34)
     }
 
@@ -2608,7 +2632,7 @@ struct GlassStage {
         // на таком размере видно как предмет, а не как линию. Но разогнать его
         // ярче нельзя — стойка тонкая и тусклая, и раскалённая головка на её
         // конце отрывается от неё, повисая в воздухе отдельной блёсткой.
-        let capsuleHead = Solid3D.Material(saturation: 0.78, glow: 0.24 + 0.30 * energy,
+        let capsuleHead = material(saturation: 0.78, glow: 0.24 + 0.30 * energy,
                                            opacity: 0.80)
         var pieces: [Solid3D.Piece] = []
 
@@ -2676,9 +2700,9 @@ struct GlassStage {
                          line: Double) -> [Solid3D.Piece]
     {
         let (x, z) = foot
-        let cabinet = Solid3D.Material(saturation: 0.92, glow: 0.14 + 0.34 * bass,
+        let cabinet = material(saturation: 0.92, glow: 0.14 + 0.34 * bass,
                                        opacity: 1.30, shade: 0.74)
-        let cone = Solid3D.Material(saturation: 0.74, glow: 0.28 + 0.46 * bass,
+        let cone = material(saturation: 0.74, glow: 0.28 + 0.46 * bass,
                                     opacity: 1.15, shade: 0.78)
         var pieces: [Solid3D.Piece] = []
 
@@ -2754,7 +2778,7 @@ struct GlassStage {
 
         // Ручка на торце: по ней и видно, что ящик носят руками. Мелочь,
         // но именно такие мелочи отличают аппарат от бруска.
-        var grip = Solid3D.Material(saturation: 0.70, glow: 0.08 + 0.16 * air,
+        var grip = material(saturation: 0.70, glow: 0.08 + 0.16 * air,
                                     opacity: 0.62, shade: 0.62)
         grip.liteHue = 0.086
         pieces.append(Solid3D.capsule(
@@ -2781,12 +2805,12 @@ struct GlassStage {
                           line: Double) -> [Solid3D.Piece]
     {
         let (x, z) = foot
-        let shell = Solid3D.Material(saturation: 0.94, glow: 0.10 + 0.20 * bass,
+        let shell = material(saturation: 0.94, glow: 0.10 + 0.20 * bass,
                                      opacity: 1.30, shade: 0.58)
         // Окантовка и ручка светлее корпуса: у настоящего кофра это алюминий
         // по рёбрам фанеры, и опознаётся ящик именно им. Без светлой рамки
         // тёмный параллелепипед у кромки читается дырой в подиуме.
-        let trim = Solid3D.Material(saturation: 0.62, glow: 0.18 + 0.26 * bass,
+        let trim = material(saturation: 0.62, glow: 0.18 + 0.26 * bass,
                                     opacity: 1.20, shade: 0.86)
         // Бутылка — самое неокрашенное тело сцены: вода прозрачна, и по этой
         // почти бесцветной вертикали её и видно на тёмной крышке.
@@ -2796,7 +2820,7 @@ struct GlassStage {
         // вместе взятых, и на общем кадре читался не бутылкой, а сбойной точкой.
         // Осталась самой бледной вещью на ящике (обкладка идёт по 0.62), но
         // перестала быть самой яркой вещью в кадре.
-        let water = Solid3D.Material(saturation: 0.44, glow: 0.22 + 0.26 * energy,
+        let water = material(saturation: 0.44, glow: 0.22 + 0.26 * energy,
                                      opacity: 0.62)
         var pieces: [Solid3D.Piece] = []
 
@@ -2855,7 +2879,7 @@ struct GlassStage {
         // он выходил в 254,235,193 — самой белой точкой всего переднего плана.
         // Это пробка от бутылки: ей положено быть глухой крашеной пластмассой,
         // а не полированным алюминием.
-        let cap = Solid3D.Material(saturation: 0.70, glow: 0.08, opacity: 1.20, shade: 0.56)
+        let cap = material(saturation: 0.70, glow: 0.08, opacity: 1.20, shade: 0.56)
         pieces.append(Solid3D.sphere(
             centre: (bottle.0, bottle.1 - w * 0.430, bottle.2), radius: w * 0.058,
             material: cap, project: project, lineWidth: line))
@@ -3042,7 +3066,7 @@ struct GlassStage {
             // четыре белых глаза оставались самыми светлыми пятнами верхней
             // трети при погасшем венце. Притемнение — единственная ручка,
             // которой у диска убавляется именно яркость.
-            let lens = Solid3D.Material(saturation: 0.62 - 0.24 * burn,
+            let lens = material(saturation: 0.62 - 0.24 * burn,
                                         glow: 0.34 + 0.62 * burn + 0.16 * energy,
                                         opacity: 1.24, shade: 0.46 + 0.54 * burn)
             // Корпус прибора — из того же материала, что и вся остальная
@@ -3050,7 +3074,7 @@ struct GlassStage {
             // тёмное железо выделяло приборы из общей гаммы, и на золотой
             // сцене они висели чужими деталями. И он разгорается вместе
             // со своей линзой: у работающей головы греется весь корпус.
-            let headBody = Solid3D.Material(saturation: 0.90,
+            let headBody = material(saturation: 0.90,
                                             glow: 0.08 + 0.26 * burn + 0.12 * air,
                                             opacity: 1.14, shade: 0.40 + 0.26 * burn)
 
@@ -3125,9 +3149,9 @@ struct GlassStage {
                                            width: halo * 2, height: halo * 2)),
                     with: .radialGradient(
                         Gradient(stops: [
-                            .init(color: Color(hue: 0.095, saturation: 0.34, brightness: 1)
+                            .init(color: tone(0.955, saturation: 0.34, brightness: 1)
                                 .opacity(0.12 + 0.46 * burn), location: 0),
-                            .init(color: Color(hue: 0.075, saturation: 0.62, brightness: 1)
+                            .init(color: tone(0.652, saturation: 0.62, brightness: 1)
                                 .opacity(0.05 + 0.20 * burn), location: 0.38),
                             .init(color: .clear, location: 1),
                         ]),
@@ -3220,8 +3244,8 @@ struct GlassStage {
         // пятно лежит на настиле наклейкой, и настил вокруг него — тем же
         // чёрным, каким был бы при выключенном приборе.
         let spill = pool(2.1)
-        let hot = Color(hue: 0.095, saturation: 0.42, brightness: 1)
-        let warm = Color(hue: 0.080, saturation: 0.60, brightness: 1)
+        let hot = tone(0.955, saturation: 0.42, brightness: 1)
+        let warm = tone(0.727, saturation: 0.60, brightness: 1)
 
         // Глубина уведена за самое дальнее тело сцены, а не взята у линзы.
         // У луча нет одной глубины: дальним концом он висит у фермы, ближним
@@ -3285,12 +3309,12 @@ struct GlassStage {
                       from lamps: [(point: CGPoint, value: Double, nearness: Double)],
                       centre: CGPoint,
                       podiumRadius: Double,
-                      palette: Palette,
+                      hues: (deep: Double, hot: Double),
+                      saturation: Double,
                       energy: Double)
     {
         guard energy > 0.02 else { return }
         context.blendMode = .plusLighter
-        let hues = palette.hues
 
         for lamp in lamps where lamp.value > 0.42 {
             let dx = centre.x - lamp.point.x
@@ -3327,11 +3351,11 @@ struct GlassStage {
                                  // читалась наизнанку. Теперь самое плотное
                                  // место луча лежит ближе к середине сцены,
                                  // куда лучи и сходятся.
-                                 .init(color: Color(hue: hues.hot, saturation: palette.saturation * 0.45,
+                                 .init(color: Color(hue: hues.hot, saturation: saturation * 0.45,
                                                     brightness: 1).opacity(alpha * 0.26), location: 0.36),
-                                 .init(color: Color(hue: hues.hot, saturation: palette.saturation * 0.50,
+                                 .init(color: Color(hue: hues.hot, saturation: saturation * 0.50,
                                                     brightness: 1).opacity(alpha), location: 0.64),
-                                 .init(color: Color(hue: hues.hot, saturation: palette.saturation * 0.55,
+                                 .init(color: Color(hue: hues.hot, saturation: saturation * 0.55,
                                                     brightness: 1).opacity(alpha * 0.24), location: 0.85),
                                  .init(color: .clear, location: 1.0),
                              ]),

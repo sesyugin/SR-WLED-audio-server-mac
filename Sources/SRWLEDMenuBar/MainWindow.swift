@@ -161,11 +161,13 @@ struct MainWindow: View {
         .shadow(color: .black.opacity(0.55), radius: 10)
     }
 
-    /// Полоса под сценой: тон столбиков и выключатель картинки.
+    /// Полоса под сценой: выключатель картинки, и только он.
     ///
-    /// Оба органа живут здесь, а не в панели справа, потому что оба правят то,
-    /// что человек прямо сейчас видит: цвет подбирают, глядя на столбики,
-    /// а не на список настроек, и выключают анимацию тоже глядя на неё.
+    /// Ползунок цвета отсюда убран и живёт в настройках, во вкладке «Вид».
+    /// Причина простая: цвет выбирают один раз и надолго, а место под сценой
+    /// стоит дорого — там уместно то, к чему тянутся часто. Выключатель как
+    /// раз такой: анимацию гасят, когда машина занята другим, и делают это
+    /// глядя на неё.
     private var stageBar: some View {
         HStack(spacing: 14) {
             Button {
@@ -181,23 +183,9 @@ struct MainWindow: View {
             .buttonStyle(.plain)
             .help(model.localized(model.animationEnabled ? .animationOff : .animationOn))
 
-            HueSlider(hue: Binding(get: { model.columnTint },
-                                   set: { model.columnHue = $0 ?? -1 }),
-                      fallback: model.palette.hues.hot)
-                .frame(maxWidth: 260)
-
-            // Кнопка возврата к палитре появляется только когда есть что
-            // возвращать: постоянная — это лишний орган рядом с ползунком,
-            // который девяносто девять раз из ста ничего не делает.
-            if model.columnTint != nil {
-                Button(model.localized(.resetColour)) { model.columnHue = -1 }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.white.opacity(0.12), in: Capsule())
-            }
+            Text(model.localized(model.animationEnabled ? .animationOn : .animationOff))
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.8))
 
             Spacer(minLength: 0)
         }

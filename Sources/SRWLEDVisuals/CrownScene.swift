@@ -137,7 +137,16 @@ public struct CrownScene: View {
 
     /// Затемнение по краям прижимает внимание к центру    /// Затемнение по краям прижимает внимание к центру и добавляет глубины.
     private func drawVignette(_ context: inout GraphicsContext, size: CGSize) {
-        let centre = CGPoint(x: size.width / 2, y: size.height / 2)
+        // Центр опущен ниже середины блока. Столбики растут вверх от пола,
+        // и вся масса венца оказывается выше геометрического центра: замер
+        // по кадру давал 95…800 при середине 506 — четыреста пикселей вверх
+        // против трёхсот вниз. Композиция от этого читалась сползшей к верхней
+        // кромке, хотя круг был построен ровно по центру.
+        //
+        // Сдвиг постоянный, а не по текущей высоте столбиков: плавающий
+        // центр возил бы всю сцену вверх-вниз в такт музыке.
+        let centre = CGPoint(x: size.width / 2,
+                             y: size.height / 2 + min(size.width, size.height) * 0.052)
         context.fill(
             Path(CGRect(origin: .zero, size: size)),
             with: .radialGradient(
@@ -163,7 +172,16 @@ public struct CrownScene: View {
 
     private func draw(_ context: inout GraphicsContext, size: CGSize, time: TimeInterval) {
         // Центр — строго середина отданного блока.
-        let centre = CGPoint(x: size.width / 2, y: size.height / 2)
+        // Центр опущен ниже середины блока. Столбики растут вверх от пола,
+        // и вся масса венца оказывается выше геометрического центра: замер
+        // по кадру давал 95…800 при середине 506 — четыреста пикселей вверх
+        // против трёхсот вниз. Композиция от этого читалась сползшей к верхней
+        // кромке, хотя круг был построен ровно по центру.
+        //
+        // Сдвиг постоянный, а не по текущей высоте столбиков: плавающий
+        // центр возил бы всю сцену вверх-вниз в такт музыке.
+        let centre = CGPoint(x: size.width / 2,
+                             y: size.height / 2 + min(size.width, size.height) * 0.052)
         let base = min(size.width, size.height)
         let energy = smoother.energy
         let flash = beat.intensity
@@ -185,8 +203,19 @@ public struct CrownScene: View {
         // идёт по таблице полос прошивки, и стоит ей поменяться — поворот
         // приедет за ней сам. Прибавка в четверть оборота ставит нужный
         // угол в переднюю точку круга, там где глубина самая малая.
-        let facingBand = 14.0
-        let spin = facingBand / 15 * 0.5 * 2 * .pi + .pi / 2
+        // Ось симметрии венца — та, что проходит через самую нижнюю и самую
+        // верхнюю полосу: спектр отражён, и правая половина кольца повторяет
+        // левую именно относительно неё. Ось обязана лежать на вертикали
+        // кадра, иначе картинка перекошена — а перекос в симметричной по
+        // замыслу вещи глаз ловит мгновенно.
+        //
+        // Поэтому в переднюю точку ставится не отдельная полоса, а сама ось,
+        // и 4479 Гц («4.5k») приходят к зрителю парой, по обе стороны от
+        // середины в двенадцати градусах. Поставить одну полосу 4.5k строго
+        // по центру нельзя, не свалив симметрию: через неё ось не проходит.
+        // Бас при этом уходит за сцену, верх выходит вперёд — так и лучше:
+        // самые высокие столбики стоят сзади и не заслоняют группу.
+        let spin = 0.5 * 2 * .pi + .pi / 2
         let tilt = 0.92
         let focal = base * 2.0
         let distance = base * 2.1
@@ -352,6 +381,7 @@ public struct CrownScene: View {
         // после. Иначе передний ряд ламп окажется под фигурами.
         let stage = GlassStage(palette: palette,
                                reflects: !light,
+                               hues: (hues.deep, hues.hot),
                                energy: energy,
                                bass: smoother.values.prefix(3).max() ?? 0,
                                air: smoother.values.suffix(4).max() ?? 0,
@@ -473,7 +503,8 @@ public struct CrownScene: View {
         GlassStage.beams(&context, from: beamSources,
                          centre: projectStatic(0, -maxHeight * 0.10, 0).0,
                          podiumRadius: radius,
-                         palette: palette, energy: energy)
+                         hues: hues, saturation: palette.saturation,
+                         energy: energy)
 
         drawLevelScale(&context, project: projectStatic, radius: radius,
                        maxHeight: maxHeight, base: base)

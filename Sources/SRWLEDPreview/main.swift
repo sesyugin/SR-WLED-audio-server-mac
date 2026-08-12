@@ -11,7 +11,9 @@ func render(name: String, bands: [Float], peaks: [Float], palette: Palette, size
     // каждый прогон превью показывал сцену под новым углом — сравнить кадр
     // до правки с кадром после было невозможно. Значение произвольное,
     // важно лишь то, что оно одно и то же от прогона к прогону.
+    let tintValue = ProcessInfo.processInfo.environment["SRWLED_TINT"].flatMap(Double.init)
     let view = CrownScene(sampler: { bands }, isRunning: true, palette: palette,
+                          tint: tintValue,
                           frozenTime: 41.7)
         .frame(width: size.width, height: size.height)
 
