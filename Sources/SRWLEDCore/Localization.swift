@@ -134,6 +134,9 @@ public enum S: String, CaseIterable, Sendable {
     case aboutAuthor, authorName, authorBio, linkMail
     case aboutCredits, creditOriginal, creditWLED, creditMM
     case aboutLicense, licenseNote
+
+    // Режим просмотра: панель убрана, на экране одна сцена
+    case showPanel, hidePanel
 }
 
 /// Переводы. Английский — опорный: если ключа нет в другом языке, берётся он.
@@ -263,6 +266,8 @@ public enum L10n {
             .creditMM: "The firmware fork this is made compatible with",
             .aboutLicense: "License",
             .licenseNote: "GPL-3.0 — inherited from the original project. This app is not affiliated with the WLED project and is not its official application; the WLED name is mentioned only to state compatibility.",
+            .showPanel: "Show panel",
+            .hidePanel: "Hide panel",
         ],
 
         .russian: [
@@ -363,6 +368,8 @@ public enum L10n {
             .creditMM: "Ответвление прошивки, под которое настроена совместимость",
             .aboutLicense: "Лицензия",
             .licenseNote: "GPL-3.0 — унаследована от оригинального проекта. Программа не связана с проектом WLED и не является его официальным приложением; название WLED упомянуто только для указания совместимости.",
+            .showPanel: "Показать панель",
+            .hidePanel: "Убрать панель",
         ],
 
         .chinese: [
@@ -463,6 +470,8 @@ public enum L10n {
             .creditMM: "本程序所兼容的固件分支",
             .aboutLicense: "许可证",
             .licenseNote: "GPL-3.0 — 继承自原始项目。本程序与 WLED 项目无关，也不是其官方应用；提及 WLED 名称仅为说明兼容性。",
+            .showPanel: "显示面板",
+            .hidePanel: "隐藏面板",
         ],
 
         .hindi: [
@@ -563,6 +572,8 @@ public enum L10n {
             .creditMM: "फ़र्मवेयर की वह शाखा जिसके साथ संगतता बनाई गई है",
             .aboutLicense: "लाइसेंस",
             .licenseNote: "GPL-3.0 — मूल परियोजना से विरासत में मिला। यह ऐप WLED परियोजना से संबद्ध नहीं है और न ही उसका आधिकारिक ऐप है; WLED नाम केवल संगतता बताने के लिए उल्लिखित है।",
+            .showPanel: "पैनल दिखाएँ",
+            .hidePanel: "पैनल छिपाएँ",
         ],
 
         .spanish: [
@@ -663,6 +674,8 @@ public enum L10n {
             .creditMM: "La bifurcación del firmware con la que se ha ajustado la compatibilidad",
             .aboutLicense: "Licencia",
             .licenseNote: "GPL-3.0, heredada del proyecto original. Esta app no está afiliada al proyecto WLED ni es su aplicación oficial; el nombre WLED se menciona solo para indicar compatibilidad.",
+            .showPanel: "Mostrar el panel",
+            .hidePanel: "Ocultar el panel",
         ],
 
         .french: [
@@ -763,6 +776,8 @@ public enum L10n {
             .creditMM: "La branche du micrologiciel avec laquelle la compatibilité est réglée",
             .aboutLicense: "Licence",
             .licenseNote: "GPL-3.0, héritée du projet d'origine. Cette app n'est pas affiliée au projet WLED et n'en est pas l'application officielle ; le nom WLED n'est mentionné que pour indiquer la compatibilité.",
+            .showPanel: "Afficher le panneau",
+            .hidePanel: "Masquer le panneau",
         ],
 
         .arabic: [
@@ -863,6 +878,8 @@ public enum L10n {
             .creditMM: "فرع البرنامج الثابت الذي ضُبطت التوافقية معه",
             .aboutLicense: "الرخصة",
             .licenseNote: "GPL-3.0 — موروثة من المشروع الأصلي. هذا التطبيق غير مرتبط بمشروع WLED وليس تطبيقه الرسمي؛ ذُكر اسم WLED للإشارة إلى التوافق فقط.",
+            .showPanel: "إظهار اللوحة",
+            .hidePanel: "إخفاء اللوحة",
         ],
 
         .bengali: [
@@ -963,6 +980,8 @@ public enum L10n {
             .creditMM: "ফার্মওয়্যারের যে শাখার সঙ্গে সামঞ্জস্য রাখা হয়েছে",
             .aboutLicense: "লাইসেন্স",
             .licenseNote: "GPL-3.0 — মূল প্রকল্প থেকে উত্তরাধিকারসূত্রে। এই অ্যাপ WLED প্রকল্পের সঙ্গে যুক্ত নয় এবং এটির দাপ্তরিক অ্যাপও নয়; সামঞ্জস্য বোঝাতেই কেবল WLED নাম উল্লেখ করা হয়েছে।",
+            .showPanel: "প্যানেল দেখান",
+            .hidePanel: "প্যানেল লুকান",
         ],
 
         .portuguese: [
@@ -1063,6 +1082,8 @@ public enum L10n {
             .creditMM: "A bifurcação do firmware com a qual a compatibilidade foi ajustada",
             .aboutLicense: "Licença",
             .licenseNote: "GPL-3.0, herdada do projeto original. Este app não tem vínculo com o projeto WLED nem é seu aplicativo oficial; o nome WLED é mencionado apenas para indicar compatibilidade.",
+            .showPanel: "Mostrar o painel",
+            .hidePanel: "Ocultar o painel",
         ],
 
         .urdu: [
@@ -1163,6 +1184,8 @@ public enum L10n {
             .creditMM: "فرم ویئر کی وہ شاخ جس کے ساتھ مطابقت رکھی گئی ہے",
             .aboutLicense: "لائسنس",
             .licenseNote: "GPL-3.0 — اصل منصوبے سے وراثت میں۔ یہ ایپ WLED منصوبے سے وابستہ نہیں اور نہ ہی اس کی سرکاری ایپ ہے؛ WLED کا نام صرف مطابقت بتانے کے لیے لیا گیا ہے۔",
+            .showPanel: "پینل دکھائیں",
+            .hidePanel: "پینل چھپائیں",
         ],
 
         .indonesian: [
@@ -1263,6 +1286,8 @@ public enum L10n {
             .creditMM: "Cabang firmware yang menjadi acuan kompatibilitas",
             .aboutLicense: "Lisensi",
             .licenseNote: "GPL-3.0 — diwarisi dari proyek asli. Aplikasi ini tidak berafiliasi dengan proyek WLED dan bukan aplikasi resminya; nama WLED disebut hanya untuk menyatakan kompatibilitas.",
+            .showPanel: "Tampilkan panel",
+            .hidePanel: "Sembunyikan panel",
         ],
 
         .german: [
@@ -1363,6 +1388,8 @@ public enum L10n {
             .creditMM: "Der Firmware-Zweig, auf den die Kompatibilität abgestimmt ist",
             .aboutLicense: "Lizenz",
             .licenseNote: "GPL-3.0 — vom ursprünglichen Projekt geerbt. Diese App gehört nicht zum WLED-Projekt und ist nicht dessen offizielle Anwendung; der Name WLED wird nur zur Angabe der Kompatibilität genannt.",
+            .showPanel: "Panel zeigen",
+            .hidePanel: "Panel ausblenden",
         ],
 
         .ukrainian: [
@@ -1463,6 +1490,8 @@ public enum L10n {
             .creditMM: "Відгалуження прошивки, під яке налаштовано сумісність",
             .aboutLicense: "Ліцензія",
             .licenseNote: "GPL-3.0 — успадкована від оригінального проєкту. Програма не пов'язана з проєктом WLED і не є його офіційним застосунком; назву WLED згадано лише для позначення сумісності.",
+            .showPanel: "Показати панель",
+            .hidePanel: "Сховати панель",
         ],
 
         .italian: [
@@ -1563,6 +1592,8 @@ public enum L10n {
             .creditMM: "Il ramo del firmware con cui è regolata la compatibilità",
             .aboutLicense: "Licenza",
             .licenseNote: "GPL-3.0, ereditata dal progetto originale. Questa app non è affiliata al progetto WLED e non ne è l'applicazione ufficiale; il nome WLED è citato solo per indicare la compatibilità.",
+            .showPanel: "Mostra il pannello",
+            .hidePanel: "Nascondi il pannello",
         ],
 
         .swedish: [
@@ -1663,6 +1694,8 @@ public enum L10n {
             .creditMM: "Den gren av programvaran som kompatibiliteten är avstämd mot",
             .aboutLicense: "Licens",
             .licenseNote: "GPL-3.0 — ärvd från originalprojektet. Appen hör inte till WLED-projektet och är inte dess officiella program; namnet WLED nämns bara för att ange kompatibilitet.",
+            .showPanel: "Visa panelen",
+            .hidePanel: "Dölj panelen",
         ],
 
         .belarusian: [
@@ -1763,6 +1796,8 @@ public enum L10n {
             .creditMM: "Адгалінаванне прашыўкі, пад якое наладжана сумяшчальнасць",
             .aboutLicense: "Ліцэнзія",
             .licenseNote: "GPL-3.0 — успадкавана ад арыгінальнага праекта. Праграма не звязана з праектам WLED і не з'яўляецца яго афіцыйнай праграмай; назва WLED згаданая толькі для пазначэння сумяшчальнасці.",
+            .showPanel: "Паказаць панэль",
+            .hidePanel: "Схаваць панэль",
         ],
     ]
 }

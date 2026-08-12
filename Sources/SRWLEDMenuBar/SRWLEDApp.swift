@@ -19,6 +19,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Self.closeRestoredAboutWindow()
         }
 
+        // Перекрыли окно, свернули его или спрятали программу — сцену рисовать
+        // некому. Шестьдесят кадров в секунду стоят четверти ядра, и жечь их
+        // в закрытое окно незачем.
+        //
+        // Следим за самим окном, а не за программой: у программы всегда есть
+        // значок в строке меню, и на её уровне видимость не гаснет никогда.
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            // Само уведомление не трогаем: Notification не Sendable, и вынести
+            // его в главный актор нельзя. Вопрос всё равно другой — не «какое
+            // окно сообщило», а «видно ли сейчас главное».
+            MainActor.assumeIsolated {
+                let visible = NSApp.windows.contains {
+                    $0.identifier?.rawValue.contains("main") == true
+                        && $0.occlusionState.contains(.visible)
+                }
+                AppModel.shared.setWindowVisible(visible)
+            }
+        }
+
         // После сна аудиоустройства нередко возвращаются с другими параметрами,
         // а уведомления CoreAudio об этом приходят не всегда — пересобираем захват сами.
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -88,6 +111,15 @@ struct SRWLEDApp: App {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(replacing: .appInfo) {
                 Button(model.localized(.aboutApp)) { openAbout() }
+            }
+            // Панель убирают с клавиатуры не реже, чем мышью: окно держат
+            // открытым под музыку, и тянуться к нему указателем ради этого
+            // не хочется.
+            CommandGroup(before: .toolbar) {
+                Button(model.localized(model.showsPanel ? .hidePanel : .showPanel)) {
+                    model.showsPanel.toggle()
+                }
+                .keyboardShortcut("s", modifiers: [.command, .control])
             }
         }
 

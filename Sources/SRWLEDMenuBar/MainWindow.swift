@@ -12,6 +12,7 @@ import SRWLEDCore
 /// разделов к своему, а самый нужный из них, диагностика, лежал в самом низу.
 struct MainWindow: View {
     @ObservedObject var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Вкладки панели. Порядок — по тому, когда к ним приходят: адреса задают
     /// один раз при настройке, вид крутят постоянно, диагностику открывают
@@ -41,14 +42,30 @@ struct MainWindow: View {
 
     @State private var tab: Tab = .send
 
+    /// Показана ли обвязка поверх сцены в режиме просмотра.
+    ///
+    /// Панель убрали — значит смотрят. Тогда через несколько секунд покоя
+    /// уходят и состояние, и полоса под сценой: на экране остаётся то, ради
+    /// чего окно и открыли. Любое движение указателя возвращает их обратно.
+    @State private var chromeVisible = true
+    @State private var chromeTask: Task<Void, Never>?
+
     var body: some View {
-        HSplitView {
-            stage
-                .frame(minWidth: 460)
-            sidebar
-                .frame(minWidth: 300, idealWidth: 330, maxWidth: 400)
+        Group {
+            if model.showsPanel {
+                HSplitView {
+                    stage
+                        .frame(minWidth: 460)
+                    sidebar
+                        .frame(minWidth: 300, idealWidth: 330, maxWidth: 400)
+                }
+            } else {
+                stage
+            }
         }
-        .frame(minWidth: 860, minHeight: 560)
+        // Без панели окно можно сузить до самой сцены: в режиме просмотра
+        // ширина под настройки больше не нужна.
+        .frame(minWidth: model.showsPanel ? 860 : 480, minHeight: 460)
         .environment(\.layoutDirection, model.language.isRightToLeft ? .rightToLeft : .leftToRight)
     }
 
@@ -69,6 +86,36 @@ struct MainWindow: View {
                 stageBar
             }
             .padding(22)
+            // Обвязка уходит только в режиме просмотра и только на ходу:
+            // на остановленном сервере прятать нечего, а кнопку пуска
+            // прятать и вовсе нельзя.
+            .opacity(chromeShown ? 1 : 0)
+            .animation(reduceMotion ? nil : Motion.envelope(rising: chromeShown),
+                       value: chromeShown)
+        }
+        // Движение указателя над сценой возвращает обвязку и заново заводит
+        // отсчёт покоя.
+        .onContinuousHover { phase in
+            if case .active = phase { wakeChrome() }
+        }
+        .onChange(of: model.showsPanel) { _, _ in wakeChrome() }
+        .onDisappear { chromeTask?.cancel() }
+    }
+
+    /// Видна ли обвязка прямо сейчас.
+    private var chromeShown: Bool {
+        model.showsPanel || !model.isRunning || chromeVisible
+    }
+
+    /// Возвращает обвязку и снова заводит отсчёт покоя.
+    private func wakeChrome() {
+        chromeTask?.cancel()
+        if !chromeVisible { chromeVisible = true }
+        guard !model.showsPanel, model.isRunning else { return }
+        chromeTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            chromeVisible = false
         }
     }
 
@@ -78,23 +125,27 @@ struct MainWindow: View {
         case .crown:
             CrownScene(sampler: { model.sampleBands() },
                        isRunning: model.isRunning,
+                       paused: !model.windowVisible,
                        palette: model.palette,
                        tint: model.columnTint,
                        light: model.lightQuality)
         case .neon:
             NeonScene(sampler: { model.sampleBands() },
                       isRunning: model.isRunning,
+                      paused: !model.windowVisible,
                       palette: model.palette,
                       tint: model.columnTint,
                       showsWordmark: false)
         case .ring:
             RingScene(sampler: { model.sampleBands() },
                       isRunning: model.isRunning,
+                      paused: !model.windowVisible,
                       palette: model.palette,
                       tint: model.columnTint)
         case .sphere:
             WireScene(sampler: { model.sampleBands() },
                       isRunning: model.isRunning,
+                      paused: !model.windowVisible,
                       palette: model.palette,
                       tint: model.columnTint)
         }
@@ -108,10 +159,12 @@ struct MainWindow: View {
         ZStack {
             Color(red: 0.035, green: 0.030, blue: 0.028).ignoresSafeArea()
             VStack(spacing: 14) {
-                SpectrumStrip(bands: model.bands)
+                SpectrumStrip(bands: model.bands, ignition: model.isRunning ? 1 : 0)
                     .frame(height: 54)
                     .foregroundStyle(Color(hue: model.columnTint ?? model.palette.hues.hot,
                                            saturation: 0.7, brightness: 1).opacity(0.75))
+                    .animation(reduceMotion ? nil : Motion.light(rising: model.isRunning),
+                               value: model.isRunning)
                 Text(model.localized(.animationOffNote))
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.45))
@@ -189,6 +242,25 @@ struct MainWindow: View {
                 .foregroundStyle(.white.opacity(0.8))
 
             Spacer(minLength: 0)
+
+            // Убрать панель — здесь же, под сценой: тянутся к этому глядя
+            // на картинку, а не разыскивая пункт в меню.
+            Button {
+                withAnimation(reduceMotion ? nil : Motion.disclosure) {
+                    model.showsPanel.toggle()
+                }
+            } label: {
+                Image(systemName: model.showsPanel
+                      ? "rectangle.righthalf.inset.filled"
+                      : "rectangle.righthalf.inset.filled.arrow.right")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 30, height: 26)
+                    .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .hoverFillOnDark(cornerRadius: 7)
+            .help(model.localized(model.showsPanel ? .hidePanel : .showPanel))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -280,6 +352,10 @@ struct MainWindow: View {
                 Circle()
                     .fill(overallColour)
                     .frame(width: 9, height: 9)
+                    // Вердикт перетекает, а не подменяется: смена цвета так
+                    // читается как «вот сейчас изменилось», а мгновенная —
+                    // как будто так и было всегда.
+                    .animation(reduceMotion ? nil : Motion.attack, value: overallColour)
                     .padding(5)
                     .contentShape(Rectangle())
             }

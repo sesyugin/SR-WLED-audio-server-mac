@@ -7,6 +7,7 @@ struct MenuContent: View {
     @ObservedObject var model: AppModel
     @State private var showingSettings = false
     @State private var showingDiagnostics = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -16,9 +17,13 @@ struct MenuContent: View {
 
             header
 
-            SpectrumStrip(bands: model.bands)
+            // Разгорание вместо мгновенной подмены: пуск — главное событие
+            // в этой программе, и гряда на него отзывается так же, как настоящая
+            // лента на первый такт. При «уменьшить движение» перескок мгновенный.
+            SpectrumStrip(bands: model.bands, ignition: model.isRunning ? 1 : 0)
                 .frame(height: 46)
-                .opacity(model.isRunning ? 1 : 0.25)
+                .animation(reduceMotion ? nil : Motion.light(rising: model.isRunning),
+                           value: model.isRunning)
 
             if case .noSignal = model.state {
                 permissionHint
@@ -32,6 +37,9 @@ struct MenuContent: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    // Приходит быстро, уходит медленно — извещение о событии,
+                    // а не переключатель.
+                    .transition(.opacity)
             }
 
             Divider()
@@ -41,6 +49,8 @@ struct MenuContent: View {
         }
         .padding(14)
         .frame(width: 300)
+        .animation(reduceMotion ? nil : Motion.envelope(rising: model.lastRestartReason != nil),
+                   value: model.lastRestartReason)
     }
 
     /// Содержимое в прокрутке: попап раньше был прибит к 420 точкам по высоте,
@@ -214,10 +224,10 @@ struct MenuContent: View {
             // диагностику» были ещё и самыми длинными строками во всей таблице.
             HStack(spacing: 8) {
                 disclosure(.settings, open: showingSettings) {
-                    withAnimation(.easeInOut(duration: 0.15)) { showingSettings.toggle() }
+                    withAnimation(Motion.disclosure) { showingSettings.toggle() }
                 }
                 disclosure(.diagnostics, open: showingDiagnostics) {
-                    withAnimation(.easeInOut(duration: 0.15)) { showingDiagnostics.toggle() }
+                    withAnimation(Motion.disclosure) { showingDiagnostics.toggle() }
                 }
                 Spacer(minLength: 0)
             }
@@ -248,7 +258,7 @@ struct MenuContent: View {
         }
         .buttonStyle(.plain)
         .hoverFill(cornerRadius: 6)
-        .animation(.easeOut(duration: 0.15), value: open)
+        .animation(Motion.disclosure, value: open)
     }
 }
 

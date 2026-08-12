@@ -16,6 +16,11 @@ public struct NeonScene: View {
 
     private let sampler: Sampler
     private let isRunning: Bool
+    /// Приостановлена ли отрисовка. Отдельно от `isRunning`: сервер может идти,
+    /// а окно быть перекрытым или свёрнутым — тогда сцену рисовать некому,
+    /// а стоит она четверти ядра.
+    private let paused: Bool
+
     private let palette: Palette
     /// Свой тон вместо палитрового. Столбики — единственное, что человек
     /// правит на глаз прямо во время музыки, и ползунок тона под сценой
@@ -38,12 +43,14 @@ public struct NeonScene: View {
 
     public init(sampler: @escaping Sampler,
                 isRunning: Bool,
+                paused: Bool = false,
                 palette: Palette = .amber,
                 tint: Double? = nil,
                 showsWordmark: Bool = true)
     {
         self.sampler = sampler
         self.isRunning = isRunning
+        self.paused = paused
         self.palette = palette
         self.tint = tint
         self.showsWordmark = showsWordmark
@@ -54,7 +61,7 @@ public struct NeonScene: View {
     private static let rays = 180
 
     public var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isRunning)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isRunning || paused)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
 
             Canvas(rendersAsynchronously: true) { context, size in

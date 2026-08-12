@@ -135,9 +135,46 @@ func benchmark(frames: Int) {
                  perFrame, 1000 / perFrame))
 }
 
+/// Фазы разгорания гряды — единственный способ увидеть моторику, не снимая экран.
+/// Кадры кладутся в один ряд, чтобы сравнивать их глазом, а не по очереди.
+@MainActor
+func renderIgnition() {
+    let phases: [Double] = [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1.0]
+    let strip = CGSize(width: 272, height: 46)
+    let view = VStack(alignment: .leading, spacing: 6) {
+        ForEach(Array(phases.enumerated()), id: \.offset) { _, phase in
+            HStack(spacing: 10) {
+                Text(String(format: "%.2f", phase))
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, alignment: .trailing)
+                SpectrumStrip(bands: music, ignition: phase)
+                    .frame(width: strip.width, height: strip.height)
+            }
+        }
+    }
+    .padding(14)
+    .background(Color(white: 0.12))
+    .environment(\.colorScheme, .dark)
+
+    let renderer = ImageRenderer(content: view)
+    renderer.scale = 2
+    guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,
+          let bitmap = NSBitmapImageRep(data: tiff),
+          let png = bitmap.representation(using: .png, properties: [:]) else { return }
+    let url = URL(fileURLWithPath: outputPath).appendingPathComponent("srwled-ignition.png")
+    try? png.write(to: url)
+    print("готово: \(url.path)")
+}
+
 MainActor.assumeIsolated {
     if ProcessInfo.processInfo.environment["SRWLED_BENCH"] != nil {
         benchmark(frames: 24)
+        exit(0)
+    }
+
+    if arguments.contains("--ignition") {
+        renderIgnition()
         exit(0)
     }
 

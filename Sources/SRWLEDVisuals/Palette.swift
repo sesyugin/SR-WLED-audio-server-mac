@@ -30,13 +30,26 @@ public enum Palette: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// Плоская полоса спектра для строки меню.
-public struct SpectrumStrip: View {
+public struct SpectrumStrip: View, @MainActor Animatable {
     public let bands: [Float]
     public var barCount: Int
 
-    public init(bands: [Float], barCount: Int = 16) {
+    /// Ход разгорания от 0 до 1. Полосы поднимаются не разом, а слева направо:
+    /// бас первым, верх последним — ровно так гряда и отзывается на первый такт.
+    ///
+    /// Значение анимируемое: `animatableData` заставляет SwiftUI пересчитывать
+    /// холст на промежуточных долях, иначе разгорание было бы скачком из 0 в 1.
+    public var ignition: Double
+
+    public init(bands: [Float], barCount: Int = 16, ignition: Double = 1) {
         self.bands = bands
         self.barCount = barCount
+        self.ignition = ignition
+    }
+
+    public var animatableData: Double {
+        get { ignition }
+        set { ignition = newValue }
     }
 
     public var body: some View {
@@ -47,14 +60,19 @@ public struct SpectrumStrip: View {
             guard barWidth > 0 else { return }
 
             for index in 0..<barCount {
+                let gate = Motion.bandGate(ignition, index: index, count: barCount)
                 let value = index < bands.count ? CGFloat(bands[index]) : 0
-                let height = max(1, value * size.height)
+                // Гасим не прозрачностью, а высотой: полоса не проявляется
+                // призраком, а вырастает со дна, как на самой ленте. Погашенная
+                // гряда при этом не исчезает — остаётся шестнадцать тёмных нитей,
+                // и видно, что зажигать есть что.
+                let height = max(1, value * size.height * CGFloat(gate))
                 let rect = CGRect(x: CGFloat(index) * (barWidth + gap),
                                   y: size.height - height,
                                   width: barWidth,
                                   height: height)
                 context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 3),
-                             with: .color(.primary))
+                             with: .color(.primary.opacity(0.12 + 0.88 * gate)))
             }
         }
     }

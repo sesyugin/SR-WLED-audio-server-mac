@@ -1,4 +1,5 @@
 import SwiftUI
+import SRWLEDVisuals
 
 /// Подсветка под курсором для кнопок без системного стиля.
 ///
@@ -23,7 +24,7 @@ struct HoverFill: ViewModifier {
                         in: RoundedRectangle(cornerRadius: cornerRadius))
             // Появление быстрее исчезновения: под курсором отклик должен быть
             // мгновенным, а уход — не дёргать глаз при проходе мимо.
-            .animation(.easeOut(duration: 0.10), value: hovering)
+            .animation(Motion.feedback, value: hovering)
             .onHover { hovering = $0 }
     }
 }

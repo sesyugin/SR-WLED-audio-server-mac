@@ -85,6 +85,21 @@ final class AppModel: ObservableObject {
     @Published var useOriginalBehaviour: Bool {
         didSet { defaults.set(useOriginalBehaviour, forKey: Keys.original) }
     }
+    /// Показана ли панель управления рядом со сценой.
+    ///
+    /// Окно этой программы держат открытым, пока играет музыка, — сцена в нём
+    /// продукт, а не превью. Панель нужна дважды: когда настраивают и когда
+    /// разбираются, почему молчит лента. Всё остальное время она отнимает
+    /// треть ширины у того, ради чего окно и открыли.
+    @Published var showsPanel: Bool {
+        didSet { defaults.set(showsPanel, forKey: Keys.panel) }
+    }
+
+    /// Видно ли окно на экране. Ложь, когда его перекрыли, свернули или спрятали
+    /// программу целиком: рисовать шестьдесят кадров в секунду в закрытое окно
+    /// незачем, а стоит это четверть ядра.
+    @Published private(set) var windowVisible = true
+
     @Published var showSpectrumInMenuBar: Bool {
         didSet { defaults.set(showSpectrumInMenuBar, forKey: Keys.spectrum) }
     }
@@ -195,6 +210,7 @@ final class AppModel: ObservableObject {
         static let port = "port"
         static let original = "originalBehaviour"
         static let spectrum = "spectrumInMenuBar"
+        static let panel = "showsPanel"
         static let launched = "hasLaunchedBefore"
         static let language = "language"
         static let palette = "palette"
@@ -250,6 +266,9 @@ final class AppModel: ObservableObject {
     /// реже остального.
     private var diagnosticsTick = 0
 
+    /// Отложенное скрытие извещения о пересборке.
+    private var restartNoticeTask: Task<Void, Never>?
+
     private let defaults = UserDefaults.standard
     private let discovery = DeviceDiscovery()
     private var statusPollTimer: Timer?
@@ -277,6 +296,7 @@ final class AppModel: ObservableObject {
         port = storedPort == 0 ? 11988 : storedPort
         useOriginalBehaviour = defaults.bool(forKey: Keys.original)
         showSpectrumInMenuBar = defaults.object(forKey: Keys.spectrum) as? Bool ?? true
+        showsPanel = defaults.object(forKey: Keys.panel) as? Bool ?? true
         isFirstRun = !defaults.bool(forKey: Keys.launched)
 
         palette = Palette(rawValue: defaults.string(forKey: Keys.palette) ?? "") ?? .amber
@@ -317,6 +337,28 @@ final class AppModel: ObservableObject {
 
     /// Короткий доступ к переводу с текущим языком.
     func localized(_ key: S) -> String { L10n.string(key, language) }
+
+    /// Сообщает модели, видно ли окно. Зовётся из делегата по уведомлению
+    /// системы о перекрытии.
+    func setWindowVisible(_ visible: Bool) {
+        guard windowVisible != visible else { return }
+        windowVisible = visible
+    }
+
+    /// Прячет извещение о пересборке через несколько секунд.
+    ///
+    /// Пересборка — событие, а не состояние. Извещение висело до самой остановки
+    /// сервера: человек переключал наушники утром и весь день читал, что захват
+    /// пересобран, — строка выглядела как непорядок, хотя всё давно в порядке.
+    private func scheduleRestartNoticeDismissal() {
+        restartNoticeTask?.cancel()
+        restartNoticeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard !Task.isCancelled else { return }
+            self?.lastRestartReason = nil
+            self?.lastRestartDetail = ""
+        }
+    }
 
     /// Ключ строки состояния — чтобы окно не знало про регистр состояний.
     ///
@@ -524,6 +566,8 @@ final class AppModel: ObservableObject {
         session = nil
         sender = nil
         senderThread = nil
+        restartNoticeTask?.cancel()
+        restartNoticeTask = nil
         lastRestartReason = nil
         lastRestartDetail = ""
 
@@ -580,6 +624,7 @@ final class AppModel: ObservableObject {
             lastRestartDetail = detail
             silenceStartedAt = nil
             quietFrames = 0
+            scheduleRestartNoticeDismissal()
 
         case .failed(let reason, let detail):
             state = .failed(reason, detail: detail)
