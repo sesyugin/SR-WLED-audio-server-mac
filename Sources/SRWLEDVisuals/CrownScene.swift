@@ -44,17 +44,9 @@ public struct CrownScene: View {
                 drawVignette(&context, size: size)
             }
         }
-        .background(
-            // Многоступенчатый градиент вместо двух точек: сверху холодная ночь,
-            // к середине уходит в фиолетовый, у плоскости теплеет. Две точки
-            // давали ровную заливку без глубины.
-            LinearGradient(stops: [
-                .init(color: Color(red: 0.020, green: 0.020, blue: 0.046), location: 0.00),
-                .init(color: Color(red: 0.045, green: 0.032, blue: 0.078), location: 0.34),
-                .init(color: Color(red: 0.072, green: 0.038, blue: 0.076), location: 0.58),
-                .init(color: Color(red: 0.062, green: 0.030, blue: 0.048), location: 0.78),
-                .init(color: Color(red: 0.018, green: 0.012, blue: 0.024), location: 1.00),
-            ], startPoint: .top, endPoint: .bottom))
+        // Ровное почти чёрное поле без градиента: любой градиент здесь читался
+        // заливкой и спорил со сценой. Всё освещение даёт сама сцена.
+        .background(Color(red: 0.019, green: 0.018, blue: 0.024))
     }
 
     /// Значение спектра по углу: зеркальная симметрия, чтобы венец читался
@@ -82,127 +74,29 @@ public struct CrownScene: View {
         let energy = smoother.energy
         let horizon = size.height * 0.72
 
-        // План 1: дальняя дымка у горизонта, широкая и мягкая.
+        // Единственный источник в фоне — мягкий пул света под сценой.
+        // Он даёт объекту опору и отделяет его от пустоты, но сам по себе
+        // ничего не изображает: фон должен быть средой, а не картинкой.
         context.blendMode = .plusLighter
-        for layer in 0..<3 {
-            let spread = base * (0.85 + Double(layer) * 0.55)
-            let centre = CGPoint(x: size.width * (0.5 + 0.04 * sin(time * 0.02 + Double(layer))),
-                                 y: horizon)
-            context.fill(
-                Path(ellipseIn: CGRect(x: centre.x - spread, y: centre.y - spread * 0.45,
-                                       width: spread * 2, height: spread * 0.9)),
-                with: .radialGradient(
-                    Gradient(stops: [
-                        .init(color: Color(hue: layer == 0 ? hues.hot : hues.deep,
-                                           saturation: palette.saturation * 0.75,
-                                           brightness: 1)
-                            .opacity((0.055 - Double(layer) * 0.012) * (0.5 + 0.5 * energy)),
-                              location: 0),
-                        .init(color: .clear, location: 1),
-                    ]),
-                    center: centre, startRadius: 0, endRadius: spread))
-        }
-
-        // План 2: звёздная пыль. Дальние точки почти стоят, ближние сдвигаются —
-        // этот параллакс и создаёт ощущение расстояния.
-        var seed: UInt64 = 0x2545F4914F6CDD1D
-        func random() -> Double {
-            seed = seed &* 6364136223846793005 &+ 1442695040888963407
-            return Double(UInt32(truncatingIfNeeded: seed >> 33)) / Double(UInt32.max)
-        }
-        for _ in 0..<150 {
-            let rx = random(), ry = random(), depth = 0.2 + 0.8 * random()
-            let drift = (time * 0.004 * depth).truncatingRemainder(dividingBy: 1)
-            let x = ((rx + drift).truncatingRemainder(dividingBy: 1)) * Double(size.width)
-            let y = ry * Double(horizon)
-            let dot = base * 0.0011 * depth
-            context.fill(
-                Path(ellipseIn: CGRect(x: x - dot, y: y - dot, width: dot * 2, height: dot * 2)),
-                with: .color(.white.opacity(0.06 + 0.30 * depth * depth)))
-        }
+        let poolRadius = base * (0.46 + 0.07 * energy)
+        let poolCentre = CGPoint(x: size.width / 2, y: size.height * 0.545)
+        context.fill(
+            // Сильно сплюснутый эллипс: свет лежит НА плоскости, а круглое пятно
+            // читалось висящей в воздухе кляксой.
+            Path(ellipseIn: CGRect(x: poolCentre.x - poolRadius,
+                                   y: poolCentre.y - poolRadius * 0.34,
+                                   width: poolRadius * 2, height: poolRadius * 0.68)),
+            with: .radialGradient(
+                Gradient(stops: [
+                    .init(color: Color(hue: hues.deep, saturation: palette.saturation * 0.85,
+                                       brightness: 1).opacity(0.016 + 0.030 * energy), location: 0),
+                    .init(color: Color(hue: hues.deep, saturation: palette.saturation * 0.9,
+                                       brightness: 1).opacity(0.005), location: 0.55),
+                    .init(color: .clear, location: 1),
+                ]),
+                center: poolCentre, startRadius: 0, endRadius: poolRadius))
         context.blendMode = .normal
 
-        // План 3: расфокусированные огни в глубине. Для сцены с лампами это
-        // и красиво, и по смыслу: то же самое, что видно на снимке, когда
-        // источники света уходят из фокуса.
-        drawBokeh(&context, size: size, time: time)
-
-        // План 5: линия горизонта — она отделяет «даль» от «пола» и без неё
-        // все предыдущие планы сливаются.
-        var line = Path()
-        line.move(to: CGPoint(x: 0, y: horizon))
-        line.addLine(to: CGPoint(x: size.width, y: horizon))
-        context.stroke(line,
-                       with: .linearGradient(
-                           Gradient(colors: [.clear,
-                                             Color(hue: hues.hot,
-                                                   saturation: palette.saturation * 0.45,
-                                                   brightness: 1).opacity(0.18 + 0.14 * energy),
-                                             .clear]),
-                           startPoint: CGPoint(x: 0, y: horizon),
-                           endPoint: CGPoint(x: size.width, y: horizon)),
-                       style: StrokeStyle(lineWidth: base * 0.0013))
-    }
-
-    /// Мягкие расфокусированные огни. Каждый — круг с очень плавным краем;
-    /// дальние крупнее и бледнее, ближние мельче и плотнее, все медленно плывут.
-    /// Никакого узора: фон должен быть средой, а не орнаментом, спорящим с прибором.
-    private func drawBokeh(_ context: inout GraphicsContext, size: CGSize, time: TimeInterval) {
-        let base = min(size.width, size.height)
-        let hues = palette.hues
-        let energy = smoother.energy
-
-        var seed: UInt64 = 0x9E3779B97F4A7C15
-        func random() -> Double {
-            seed = seed &* 6364136223846793005 &+ 1442695040888963407
-            return Double(UInt32(truncatingIfNeeded: seed >> 33)) / Double(UInt32.max)
-        }
-
-        context.blendMode = .plusLighter
-
-        // Раскладка по сетке со смещением, а не чистый случай: чистый случай
-        // сбивает пятна в комья и оставляет пустые углы.
-        let columnsCount = 7, rowsCount = 5
-        for row in 0..<rowsCount {
-            for column in 0..<columnsCount {
-                let depth = random()
-                let jitterX = (random() - 0.5) * 1.5
-                let jitterY = (random() - 0.5) * 1.5
-
-                let cellW = size.width / Double(columnsCount)
-                let cellH = size.height / Double(rowsCount)
-                let phase = random() * 2 * .pi
-                let speed = 0.008 + 0.022 * depth
-
-                let x = cellW * (Double(column) + 0.5 + jitterX * 0.42)
-                    + cos(time * speed + phase) * base * 0.025
-                let y = cellH * (Double(row) + 0.5 + jitterY * 0.42)
-                    + sin(time * speed * 1.3 + phase) * base * 0.018
-
-                let radius = base * (0.014 + 0.030 * (1 - depth))
-                let hue = hues.deep + (hues.hot - hues.deep) * random()
-                let alpha = (0.006 + 0.020 * depth) * (0.55 + 0.45 * energy)
-
-                let colour = Color(hue: hue,
-                                   saturation: palette.saturation * (0.85 - 0.30 * depth),
-                                   brightness: 1)
-
-                context.fill(
-                    Path(ellipseIn: CGRect(x: x - radius, y: y - radius,
-                                           width: radius * 2, height: radius * 2)),
-                    with: .radialGradient(
-                        Gradient(stops: [
-                            // Кольцевой профиль: у расфокусированного источника край
-                            // ярче середины, иначе получается просто мутное пятно.
-                            .init(color: colour.opacity(alpha * 0.5), location: 0.0),
-                            .init(color: colour.opacity(alpha * 0.75), location: 0.74),
-                            .init(color: colour.opacity(alpha), location: 0.92),
-                            .init(color: colour.opacity(0), location: 1.0),
-                        ]),
-                        center: CGPoint(x: x, y: y), startRadius: 0, endRadius: radius))
-            }
-        }
-        context.blendMode = .normal
     }
 
     /// Затемнение по краям прижимает внимание к центру    /// Затемнение по краям прижимает внимание к центру и добавляет глубины.
@@ -250,6 +144,18 @@ public struct CrownScene: View {
         let cosTilt = cos(tilt), sinTilt = sin(tilt)
         let referenceScale = focal / distance
 
+        /// Проекция без вращения: ею пользуются шкалы и сцена в центре.
+        /// Группа музыкантов не должна кружиться вместе с венцом — иначе колонки
+        /// разъезжаются по диагонали и раскладка теряет смысл.
+        func projectStatic(_ x: Double, _ y: Double, _ z: Double)
+            -> (CGPoint, Double, Double)
+        {
+            let ty = y * cosTilt - z * sinTilt
+            let tz = y * sinTilt + z * cosTilt
+            let scale = focal / max(tz + distance, 1)
+            return (CGPoint(x: centre.x + x * scale, y: centre.y + ty * scale), scale, tz)
+        }
+
         /// Проекция точки: экранные координаты, масштаб и глубина.
         func project(_ x: Double, _ y: Double, _ z: Double) -> (CGPoint, Double, Double) {
             let rx = x * cosSpin + z * sinSpin
@@ -294,91 +200,65 @@ public struct CrownScene: View {
         let step = 2 * Double.pi / Double(Self.columns)
         let halfWidth = radius * step * 0.30
 
-        // Колба всегда одного размера — меняется только высота стойки под ней.
-        // Раньше растягивалась сама колба вместе с нитью, и лампа переставала
-        // читаться лампой: у настоящей меняется накал, а не размер стекла.
-        let bulbHeight = maxHeight * 0.115
-        let stemRange = maxHeight - bulbHeight
-
+        // Колонна — цельная стеклянная трубка с нитью накаливания во всю длину,
+        // как в филаментной лампе. Прошлый вариант делил столбик на стойку и колбу
+        // сверху, и в нём нить жила только в верхней части — теперь она проходит
+        // весь столбик и закреплена на обоих концах.
         for index in 0..<Self.columns {
             let position = Double(index) / Double(Self.columns)
             let theta = position * 2 * .pi
             let value = spectrum(at: position)
             let peakValue = peakSpectrum(at: position)
-
-            let stemTop = stemRange * (0.04 + 0.96 * value)
-            let bulbBottom = stemTop
-            let bulbTop = stemTop + bulbHeight
+            let height = maxHeight * (0.05 + 0.95 * value)
 
             let tangentX = -sin(theta), tangentZ = cos(theta)
             let cx = cos(theta) * radius, cz = sin(theta) * radius
             let leftX = cx - tangentX * halfWidth, leftZ = cz - tangentZ * halfWidth
             let rightX = cx + tangentX * halfWidth, rightZ = cz + tangentZ * halfWidth
 
-            // Стойка — тонкая линия от плоскости до колбы.
-            let footPoint = project(cx, 0, cz)
-            let stemTopPoint = project(cx, -bulbBottom, cz)
-            var stem = Path()
-            stem.move(to: footPoint.0)
-            stem.addLine(to: stemTopPoint.0)
+            let baseLeft = project(leftX, 0, leftZ)
+            let baseRight = project(rightX, 0, rightZ)
+            let topLeft = project(leftX, -height, leftZ)
+            let topRight = project(rightX, -height, rightZ)
+            let apex = project(cx, -height, cz)
+            let foot = project(cx, 0, cz)
 
-            // Стекло колбы.
-            let glassBaseLeft = project(leftX, -bulbBottom, leftZ)
-            let glassBaseRight = project(rightX, -bulbBottom, rightZ)
-            let shoulderLeft = project(leftX, -(bulbBottom + bulbHeight * 0.72), leftZ)
-            let shoulderRight = project(rightX, -(bulbBottom + bulbHeight * 0.72), rightZ)
-            let crown = project(cx, -bulbTop, cz)
-
+            // Стекло: трубка со скруглённой макушкой и скруглённым низом.
+            let capRise = (baseLeft.0.y - topLeft.0.y) * 0.0
+            _ = capRise
+            let width = abs(baseRight.0.x - baseLeft.0.x)
             var glass = Path()
-            glass.move(to: glassBaseLeft.0)
-            glass.addLine(to: shoulderLeft.0)
-            glass.addQuadCurve(to: crown.0,
-                               control: CGPoint(x: shoulderLeft.0.x,
-                                                y: crown.0.y + (shoulderLeft.0.y - crown.0.y) * 0.2))
-            glass.addQuadCurve(to: shoulderRight.0,
-                               control: CGPoint(x: shoulderRight.0.x,
-                                                y: crown.0.y + (shoulderRight.0.y - crown.0.y) * 0.2))
-            glass.addLine(to: glassBaseRight.0)
+            glass.move(to: baseLeft.0)
+            glass.addLine(to: topLeft.0)
+            glass.addQuadCurve(to: topRight.0,
+                               control: CGPoint(x: apex.0.x, y: apex.0.y - width * 0.85))
+            glass.addLine(to: baseRight.0)
+            glass.addQuadCurve(to: baseLeft.0,
+                               control: CGPoint(x: foot.0.x, y: foot.0.y + width * 0.55))
             glass.closeSubpath()
 
-            // Нить внутри колбы. Она держится на двух вводах, идущих от цоколя,
-            // и замыкается дугой наверху — так у настоящей лампы. Прошлая версия
-            // рисовала нить парящей в воздухе, и колба переставала быть лампой.
-            let leadInset = halfWidth * 0.45
-            let leadLeftX = cx - tangentX * leadInset, leadLeftZ = cz - tangentZ * leadInset
-            let leadRightX = cx + tangentX * leadInset, leadRightZ = cz + tangentZ * leadInset
-
-            // Вводы начинаются ровно на дне колбы: раньше нить стартовала выше
-            // и висела в стекле, что и ломало вид лампы.
-            let footLeft = project(leadLeftX, -bulbBottom, leadLeftZ)
-            let footRight = project(leadRightX, -bulbBottom, leadRightZ)
-            let arcLeft = project(leadLeftX, -(bulbBottom + bulbHeight * 0.62), leadLeftZ)
-            let arcRight = project(leadRightX, -(bulbBottom + bulbHeight * 0.62), leadRightZ)
-            let arcTop = project(cx, -(bulbBottom + bulbHeight * 0.84), cz)
-
+            // Нить: по всей длине трубки, закреплена на обоих концах.
             var filament = Path()
-            filament.move(to: footLeft.0)
-            filament.addLine(to: arcLeft.0)
-            filament.addQuadCurve(to: arcRight.0, control: arcTop.0)
-            filament.addLine(to: footRight.0)
+            filament.move(to: project(cx, -height * 0.035, cz).0)
+            filament.addLine(to: project(cx, -height * 0.965, cz).0)
 
             var peak: Path?
             if peakValue > value + 0.04 {
-                let peakY = stemRange * (0.04 + 0.96 * peakValue) + bulbHeight * 0.5
-                let markLeft = project(leftX * 1.25, -peakY, leftZ * 1.25)
-                let markRight = project(rightX * 1.25, -peakY, rightZ * 1.25)
+                let peakY = maxHeight * (0.05 + 0.95 * peakValue)
+                let markLeft = project(leftX * 1.22, -peakY, leftZ * 1.22)
+                let markRight = project(rightX * 1.22, -peakY, rightZ * 1.22)
                 var mark = Path()
                 mark.move(to: markLeft.0)
                 mark.addLine(to: markRight.0)
                 peak = mark
             }
 
-            lamps.append(Lamp(stem: stem, glass: glass, filament: filament,
-                              tip: crown.0,
-                              tipSize: halfWidth * crown.1 * 0.45,
+            lamps.append(Lamp(stem: Path(), glass: glass, filament: filament,
+                              tip: apex.0,
+                              tipSize: halfWidth * apex.1 * 0.55,
                               peak: peak,
-                              depth: footPoint.2,
-                              nearness: footPoint.1 / referenceScale,
+                              depth: baseLeft.2,
+                              nearness: baseLeft.1 / referenceScale,
                               value: value))
         }
 
@@ -395,23 +275,18 @@ public struct CrownScene: View {
 
         for lamp in lamps {
             if !stageDrawn && lamp.depth <= 0 {
-                stage.draw(&context, project: project, radius: radius,
+                stage.draw(&context, project: projectStatic, radius: radius,
                            maxHeight: maxHeight, base: base)
                 stageDrawn = true
             }
 
             let depthFade = max(0, min(1, (lamp.nearness - 0.72) / 0.55))
-            let intensity = (0.10 + 0.90 * lamp.value) * (0.30 + 0.70 * depthFade)
+            let intensity = (0.16 + 0.84 * lamp.value) * (0.38 + 0.62 * depthFade)
 
             let hue = hues.deep + (hues.hot - hues.deep) * lamp.value
             let tint = Color(hue: hue,
                              saturation: palette.saturation * (0.92 - 0.45 * lamp.value),
                              brightness: 1)
-
-            // Стойка: тонкая и тёмная, она не должна спорить с колбой.
-            context.stroke(lamp.stem,
-                           with: .color(tint.opacity(0.12 + 0.20 * depthFade)),
-                           style: StrokeStyle(lineWidth: max(0.5, base * 0.0009)))
 
             // Стекло: почти невидимое.
             context.fill(lamp.glass, with: .color(tint.opacity(0.05 + 0.09 * intensity)))
@@ -419,16 +294,20 @@ public struct CrownScene: View {
                            with: .color(tint.opacity(0.12 + 0.22 * intensity)),
                            style: StrokeStyle(lineWidth: max(0.5, base * 0.0008), lineJoin: .round))
 
-            // Нить — единственное яркое место.
+            // Нить — единственное яркое место. Три обводки: широкий ореол,
+            // тело нити и раскалённая сердцевина.
             context.blendMode = .plusLighter
             context.stroke(lamp.filament,
-                           with: .color(tint.opacity(0.08 + 0.32 * intensity)),
-                           style: StrokeStyle(lineWidth: max(1.4, base * 0.0040), lineCap: .round))
+                           with: .color(tint.opacity(0.06 + 0.26 * intensity)),
+                           style: StrokeStyle(lineWidth: max(1.6, base * 0.0046), lineCap: .round))
+            context.stroke(lamp.filament,
+                           with: .color(tint.opacity(0.20 + 0.48 * intensity)),
+                           style: StrokeStyle(lineWidth: max(0.9, base * 0.0018), lineCap: .round))
             context.stroke(lamp.filament,
                            with: .color(Color(hue: hue,
-                                              saturation: palette.saturation * (0.5 - 0.45 * lamp.value),
-                                              brightness: 1).opacity(0.30 + 0.65 * intensity)),
-                           style: StrokeStyle(lineWidth: max(0.7, base * 0.0013), lineCap: .round))
+                                              saturation: palette.saturation * (0.35 - 0.30 * lamp.value),
+                                              brightness: 1).opacity(0.30 + 0.68 * intensity)),
+                           style: StrokeStyle(lineWidth: max(0.5, base * 0.0008), lineCap: .round))
 
             let tipSize = max(0.6, lamp.tipSize)
             context.fill(
@@ -444,19 +323,8 @@ public struct CrownScene: View {
             }
         }
 
-        // Шкалы не вращаются вместе с венцом: у прибора разметка стоит на месте,
-        // иначе её приходится гасить, чтобы она не плясала поверх колонн.
-        func projectStatic(_ x: Double, _ y: Double, _ z: Double)
-            -> (CGPoint, Double, Double)
-        {
-            let ty = y * cosTilt - z * sinTilt
-            let tz = y * sinTilt + z * cosTilt
-            let scale = focal / max(tz + distance, 1)
-            return (CGPoint(x: centre.x + x * scale, y: centre.y + ty * scale), scale, tz)
-        }
-
         if !stageDrawn {
-            stage.draw(&context, project: project, radius: radius,
+            stage.draw(&context, project: projectStatic, radius: radius,
                        maxHeight: maxHeight, base: base)
         }
 

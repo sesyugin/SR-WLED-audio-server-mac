@@ -36,6 +36,13 @@ struct GlassStage {
         Color(hue: hue, saturation: palette.saturation * saturation, brightness: 1).opacity(alpha)
     }
 
+    /// Лёд намеренно холодный независимо от гаммы сцены: тёплые лампы вокруг
+    /// и холодные фигуры в центре дают контраст, на котором и держится картинка.
+    /// Одинаковый тон слил бы фигуры с венцом в одно пятно.
+    private func ice(_ alpha: Double, saturation: Double = 0.35) -> Color {
+        Color(hue: 0.545, saturation: palette.saturation * saturation, brightness: 1).opacity(alpha)
+    }
+
     /// Рисует всю сцену. `project` — та же проекция, что у ламп.
     func draw(_ context: inout GraphicsContext,
               project: (Double, Double, Double) -> (CGPoint, Double, Double),
@@ -48,12 +55,14 @@ struct GlassStage {
         // Порядок отрисовки — от дальних к ближним, иначе барабанщик окажется
         // впереди вокалиста.
         let items: [(Placement, (inout GraphicsContext, CGPoint, Double, Double) -> Void)] = [
-            (Placement(x: -0.78, z: -0.10, height: 0.26), drawSpeaker),
-            (Placement(x:  0.78, z: -0.10, height: 0.26), drawSpeaker),
-            (Placement(x:  0.00, z: -0.46, height: 0.21), drawDrummer),
-            (Placement(x: -0.36, z:  0.14, height: 0.26), drawGuitarist),
-            (Placement(x:  0.36, z:  0.14, height: 0.24), drawKeyboardist),
-            (Placement(x:  0.00, z:  0.26, height: 0.30), drawVocalist),
+            // Знак z: при наклоне камеры положительный уходит ОТ зрителя.
+            // Барабанщик стоит позади всех, вокалист — впереди, колонки по краям.
+            (Placement(x:  0.00, z:  0.34, height: 0.22), drawDrummer),
+            (Placement(x: -0.54, z:  0.12, height: 0.26), drawSpeaker),
+            (Placement(x:  0.54, z:  0.12, height: 0.26), drawSpeaker),
+            (Placement(x: -0.24, z: -0.02, height: 0.27), drawGuitarist),
+            (Placement(x:  0.24, z:  0.00, height: 0.25), drawKeyboardist),
+            (Placement(x:  0.00, z: -0.26, height: 0.31), drawVocalist),
         ]
 
         let placed = items.map { item -> (Placement, CGPoint, Double, Double,
@@ -64,7 +73,7 @@ struct GlassStage {
         .sorted { $0.3 > $1.3 }
 
         for (placement, point, scale, _, drawFigure) in placed {
-            let height = maxHeight * placement.height * scale * 1.15
+            let height = maxHeight * placement.height * scale * 1.30
             drawFigure(&context, point, height, base)
         }
     }
@@ -87,19 +96,20 @@ struct GlassStage {
         disc.closeSubpath()
 
         let bounds = disc.boundingRect
+        // Заливка подиума намеренно почти нулевая: сплошной диск давал мутное
+        // пятно под фигурами и съедал контраст со льдом.
         context.fill(disc,
                      with: .linearGradient(
                          Gradient(stops: [
-                             .init(color: glass(hues.hot, 0.05 + 0.06 * energy, saturation: 0.5),
-                                   location: 0),
-                             .init(color: glass(hues.deep, 0.02, saturation: 0.6), location: 1),
+                             .init(color: ice(0.020 + 0.028 * energy, saturation: 0.30), location: 0),
+                             .init(color: ice(0.006, saturation: 0.5), location: 1),
                          ]),
                          startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
                          endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)))
 
         context.blendMode = .plusLighter
         context.stroke(disc,
-                       with: .color(glass(hues.hot, 0.16 + 0.22 * energy, saturation: 0.45)),
+                       with: .color(ice(0.18 + 0.24 * energy, saturation: 0.28)),
                        style: StrokeStyle(lineWidth: max(0.6, base * 0.0011)))
         context.blendMode = .normal
     }
@@ -112,50 +122,66 @@ struct GlassStage {
                            _ path: Path,
                            base: Double,
                            glow: Double,
-                           highlightOffset: CGFloat = -0.28)
+                           facets: Bool = true)
     {
         let bounds = path.boundingRect
-        guard bounds.height > 0.5 else { return }
+        guard bounds.height > 0.5, bounds.width > 0.2 else { return }
 
-        // Мягкое свечение позади фигуры — стекло светится изнутри.
+        // Свет изнутри: пятно у сердцевины, гаснущее к краям. Именно оно делает
+        // лёд светящимся, а не подсвеченным снаружи.
         context.blendMode = .plusLighter
-        context.fill(path, with: .color(glass(hues.hot, 0.03 + 0.09 * glow, saturation: 0.5)))
+        context.fill(path,
+                     with: .radialGradient(
+                         Gradient(stops: [
+                             .init(color: ice(0.16 + 0.34 * glow, saturation: 0.20), location: 0.0),
+                             .init(color: ice(0.06 + 0.16 * glow, saturation: 0.40), location: 0.55),
+                             .init(color: ice(0.0), location: 1.0),
+                         ]),
+                         center: CGPoint(x: bounds.midX, y: bounds.midY + bounds.height * 0.18),
+                         startRadius: 0,
+                         endRadius: max(bounds.width, bounds.height) * 0.75))
         context.blendMode = .normal
 
-        // Тело почти не заливается: стекло читается контуром и бликом,
-        // а плотная заливка превращает фигуру в бумажную вырезку.
+        // Тело: холодная полупрозрачная масса, книзу плотнее.
         context.fill(path,
                      with: .linearGradient(
                          Gradient(stops: [
-                             .init(color: glass(hues.hot, 0.04 + 0.09 * glow, saturation: 0.25),
-                                   location: 0.0),
-                             .init(color: glass(hues.hot, 0.02 + 0.05 * glow, saturation: 0.55),
-                                   location: 0.45),
-                             .init(color: glass(hues.deep, 0.05 + 0.08 * glow, saturation: 0.8),
-                                   location: 1.0),
+                             .init(color: ice(0.05 + 0.08 * glow, saturation: 0.15), location: 0.0),
+                             .init(color: ice(0.09 + 0.10 * glow, saturation: 0.45), location: 1.0),
                          ]),
                          startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
                          endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)))
 
-        // Контур: сверху ярче, снизу гаснет — так стекло ловит верхний свет.
+        // Огранка: пара прямых сколов внутри силуэта. Лёд отличается от стекла
+        // именно гранями, а не гладкостью.
+        if facets, bounds.height > base * 0.012 {
+            // Обрезка ведётся в КОПИИ контекста: GraphicsContext.clip меняет
+            // состояние навсегда, и вызов на общем контексте обрезал бы всё,
+            // что рисуется дальше, силуэтом этой фигуры.
+            var faceted = context
+            faceted.clip(to: path)
+            faceted.blendMode = .plusLighter
+            for facet in 0..<2 {
+                let offset = bounds.width * (facet == 0 ? 0.22 : 0.62)
+                var line = Path()
+                line.move(to: CGPoint(x: bounds.minX + offset, y: bounds.minY))
+                line.addLine(to: CGPoint(x: bounds.minX + offset - bounds.width * 0.30,
+                                         y: bounds.maxY))
+                faceted.stroke(line,
+                               with: .color(ice(0.14 + 0.20 * glow, saturation: 0.10)),
+                               style: StrokeStyle(lineWidth: max(0.4, base * 0.0009)))
+            }
+        }
+
+        // Кромка: сверху яркая, книзу гаснет — так лёд ловит верхний свет.
         context.stroke(path,
                        with: .linearGradient(
-                           Gradient(colors: [.white.opacity(0.45 + 0.35 * glow),
-                                             glass(hues.hot, 0.30 + 0.30 * glow, saturation: 0.4),
-                                             glass(hues.deep, 0.10, saturation: 0.8)]),
+                           Gradient(colors: [.white.opacity(0.55 + 0.35 * glow),
+                                             ice(0.34 + 0.30 * glow, saturation: 0.25),
+                                             ice(0.10, saturation: 0.55)]),
                            startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
                            endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)),
-                       style: StrokeStyle(lineWidth: max(0.6, base * 0.0011),
-                                          lineJoin: .round))
-
-        // Блик: узкая светлая полоса вдоль одной стороны — главный признак стекла.
-        var highlight = path
-        highlight = highlight.offsetBy(dx: bounds.width * highlightOffset * 0.2, dy: 0)
-        context.blendMode = .plusLighter
-        context.stroke(highlight,
-                       with: .color(.white.opacity(0.12 + 0.20 * glow)),
-                       style: StrokeStyle(lineWidth: max(0.4, base * 0.0007)))
-        context.blendMode = .normal
+                       style: StrokeStyle(lineWidth: max(0.6, base * 0.0012), lineJoin: .round))
     }
 
     // MARK: - Фигуры
@@ -183,7 +209,7 @@ struct GlassStage {
                            width: width * 0.34, height: width * 0.34)
         for circle in [lower, upper] {
             context.stroke(Path(ellipseIn: circle),
-                           with: .color(glass(hues.hot, 0.30 + 0.45 * bass, saturation: 0.4)),
+                           with: .color(ice(0.32 + 0.45 * bass, saturation: 0.25)),
                            style: StrokeStyle(lineWidth: max(0.5, base * 0.0009)))
             context.fill(Path(ellipseIn: circle.insetBy(dx: circle.width * 0.34,
                                                         dy: circle.height * 0.34)),
@@ -229,7 +255,7 @@ struct GlassStage {
         stand.addLine(to: CGPoint(x: foot.x + unit * 0.24, y: foot.y - unit * 0.56))
         context.blendMode = .plusLighter
         context.stroke(stand,
-                       with: .color(glass(hues.hot, 0.28 + 0.30 * energy, saturation: 0.35)),
+                       with: .color(ice(0.30 + 0.32 * energy, saturation: 0.22)),
                        style: StrokeStyle(lineWidth: max(0.5, base * 0.0009), lineCap: .round))
         context.fill(
             Path(ellipseIn: CGRect(x: foot.x + unit * 0.20, y: foot.y - unit * 0.60,
@@ -267,13 +293,13 @@ struct GlassStage {
                                      width: unit * 0.30, height: unit * 0.20))
         context.blendMode = .plusLighter
         context.stroke(guitar,
-                       with: .color(glass(hues.hot, 0.32 + 0.36 * energy, saturation: 0.35)),
+                       with: .color(ice(0.34 + 0.36 * energy, saturation: 0.22)),
                        style: StrokeStyle(lineWidth: max(0.5, base * 0.0010)))
         var neck = Path()
         neck.move(to: CGPoint(x: bodyCentre.x + unit * 0.12, y: bodyCentre.y - unit * 0.02))
         neck.addLine(to: CGPoint(x: bodyCentre.x + unit * 0.44, y: bodyCentre.y - unit * 0.20))
         context.stroke(neck,
-                       with: .color(glass(hues.hot, 0.30 + 0.34 * energy, saturation: 0.3)),
+                       with: .color(ice(0.32 + 0.34 * energy, saturation: 0.20)),
                        style: StrokeStyle(lineWidth: max(0.5, base * 0.0009), lineCap: .round))
         context.blendMode = .normal
     }
