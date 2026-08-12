@@ -70,6 +70,7 @@ func printUsage() {
       --seconds <N>        работать N секунд и выйти (по умолчанию до Ctrl-C)
       --quiet              не печатать индикатор уровня
       --restart-after <N>  через N секунд пересобрать захват (проверка перезапуска)
+      --version            версия программы
       --help               эта справка
 
     Сравнение обработки:
@@ -91,6 +92,10 @@ func parseOptions() -> Options?? {
         case "--help", "-h":
             printUsage()
             return .some(nil)          // штатный выход
+
+        case "--version", "-v":
+            print("srwled \(Version.current) (сборка \(Version.build))")
+            return .some(nil)
 
         case "--targets":
             guard let list = value() else { print("--targets требует список адресов"); return nil }
@@ -193,11 +198,15 @@ func runServer() -> Int32 {
         settings: options.settings,
         onFrameReady: { frameReady.signal() },
         onEvent: { event in
+            // Консоль пока говорит только по-русски, поэтому и причину печатаем
+            // по-русски: смесь языков в одной строке хуже одного языка.
             switch event {
-            case .restarted(let reason):
-                print("\n[захват пересобран: \(reason)]")
-            case .failed(let message):
-                print("\n[ошибка захвата: \(message)]")
+            case .restarted(let reason, let detail):
+                let tail = detail.isEmpty ? "" : ": \(detail)"
+                print("\n[захват пересобран: \(L10n.string(reason, .russian))\(tail)]")
+            case .failed(let reason, let detail):
+                let tail = detail.isEmpty ? "" : ": \(detail)"
+                print("\n[ошибка захвата: \(L10n.string(reason, .russian))\(tail)]")
             case .started, .stopped:
                 break
             }
@@ -282,7 +291,7 @@ func runServer() -> Int32 {
 
     if options.restartAfter > 0 {
         DispatchQueue.global().asyncAfter(deadline: .now() + options.restartAfter) {
-            session.restart(reason: "проверка перезапуска")
+            session.restart(reason: .restartCheck)
         }
     }
 

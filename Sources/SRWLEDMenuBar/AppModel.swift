@@ -4,21 +4,32 @@ import SRWLEDCore
 import SRWLEDVisuals
 
 /// Состояние сервера, которое видит человек.
+///
+/// У отказа причина хранится ключом перевода, а не готовой строкой: она попадает
+/// в окно и в строку меню, а те говорят на языке пользователя. Подробность —
+/// текст системной ошибки, его не переводят.
 enum ServerState: Equatable {
     case stopped
     case playing
     case silent
     case noSignal          // захват идёт, но в буфере ровно нули — обычно нет разрешения
-    case failed(String)
+    case failed(S, detail: String)
 
-    var title: String {
+    /// Ключ строки состояния.
+    var key: S {
         switch self {
-        case .stopped: return "Остановлено"
-        case .playing: return "Звук идёт"
-        case .silent: return "Тишина"
-        case .noSignal: return "Нет сигнала"
-        case .failed(let message): return message
+        case .stopped: return .stopped
+        case .playing: return .playing
+        case .silent: return .silent
+        case .noSignal: return .noSignal
+        case .failed(let reason, _): return reason
         }
+    }
+
+    /// Подробность отказа: имена, числа, текст ошибки. Пусто, если её нет.
+    var detail: String {
+        if case .failed(_, let detail) = self { return detail }
+        return ""
     }
 
     var symbol: String {
@@ -48,8 +59,17 @@ final class AppModel: ObservableObject {
     /// История полос для водопада. Кольцевой буфер на 20 секунд при обновлении 10 раз в секунду.
     @Published private(set) var packetsPerSecond = 0
     @Published private(set) var totalPackets = 0
-    @Published private(set) var sourceDescription = ""
+    /// Источник хранится по частям, а собирается на языке интерфейса: раньше строка
+    /// складывалась один раз при запуске захвата и застывала с русским «Гц» —
+    /// смена языка её уже не трогала.
+    @Published private(set) var sourceDevice = ""
+    @Published private(set) var sourceRate: Double = 0
     @Published private(set) var destinationDescription = ""
+
+    var sourceDescription: String {
+        guard !sourceDevice.isEmpty else { return "" }
+        return L10n.string(.sourceFormat, language, [sourceDevice, "\(Int(sourceRate))"])
+    }
 
     // MARK: Настройки, сохраняемые между запусками
 
@@ -199,15 +219,32 @@ final class AppModel: ObservableObject {
     @Published private(set) var discoveredDevices: [DiscoveredDevice] = []
     @Published private(set) var isSearching = false
 
-    @Published private(set) var lastRestartReason: String?
+    /// Почему захват пересобрался в последний раз: ключ причины и подробность
+    /// (имена устройств или частоты), которую не переводят.
+    @Published private(set) var lastRestartReason: S?
+    @Published private(set) var lastRestartDetail = ""
     @Published private(set) var diagnostics = Diagnostics(lines: [])
     @Published var launchAtLogin: Bool = LoginItem.state.isOn {
         didSet {
             guard launchAtLogin != oldValue else { return }
-            loginItemProblem = LoginItem.set(launchAtLogin) ?? LoginItem.state.explanation
+            if let failure = LoginItem.set(launchAtLogin) {
+                // Текст системной ошибки перевести нечем — показываем как есть.
+                loginItemProblemKey = nil
+                loginItemProblemDetail = failure
+            } else {
+                loginItemProblemKey = LoginItem.state.explanation
+                loginItemProblemDetail = ""
+            }
         }
     }
-    @Published private(set) var loginItemProblem: String? = LoginItem.state.explanation
+    @Published private(set) var loginItemProblemKey: S? = LoginItem.state.explanation
+    @Published private(set) var loginItemProblemDetail = ""
+
+    /// Что не так с автозапуском: перевод объяснения либо текст системной ошибки.
+    var loginItemProblem: String? {
+        if let loginItemProblemKey { return localized(loginItemProblemKey) }
+        return loginItemProblemDetail.isEmpty ? nil : loginItemProblemDetail
+    }
 
     /// Счётчик тиков обновления интерфейса: по нему диагностика собирается
     /// реже остального.
@@ -282,15 +319,13 @@ final class AppModel: ObservableObject {
     func localized(_ key: S) -> String { L10n.string(key, language) }
 
     /// Ключ строки состояния — чтобы окно не знало про регистр состояний.
-    var stateKey: S {
-        switch state {
-        case .stopped: return .stopped
-        case .playing: return .playing
-        case .silent: return .silent
-        case .noSignal: return .noSignal
-        case .failed: return .noSignal
-        }
-    }
+    ///
+    /// Отказ раньше подменялся ключом «нет сигнала», и человек видел то же самое,
+    /// что при неотданном разрешении, — а причина у отказа своя и чинится иначе.
+    var stateKey: S { state.key }
+
+    /// Подробность отказа: текст системной ошибки под заголовком состояния.
+    var stateDetail: String { state.detail }
 
     // MARK: Поиск лент
 
@@ -404,7 +439,7 @@ final class AppModel: ObservableObject {
         let settings = buildSettings()
         let endpoints = PacketSender.resolveEndpoints(settings: settings)
         guard !endpoints.isEmpty else {
-            state = .failed("Не указано, куда отправлять")
+            state = .failed(.failNoTargets, detail: "")
             return
         }
 
@@ -412,7 +447,7 @@ final class AppModel: ObservableObject {
         do {
             transport = try UDPTransport(allowBroadcast: PacketSender.needsBroadcast(settings.sendMode))
         } catch {
-            state = .failed("Сеть недоступна: \(error)")
+            state = .failed(.failNetwork, detail: "\(error)")
             return
         }
 
@@ -432,7 +467,7 @@ final class AppModel: ObservableObject {
         do {
             try session.start()
         } catch {
-            state = .failed("Не удалось прочитать системный звук")
+            state = .failed(.failCapture, detail: "\(error)")
             return
         }
 
@@ -442,7 +477,8 @@ final class AppModel: ObservableObject {
         self.quietFrames = 0
         self.silenceStartedAt = nil
 
-        sourceDescription = "\(session.deviceName) · \(Int(session.sampleRate)) Гц"
+        sourceDevice = session.deviceName
+        sourceRate = session.sampleRate
         destinationDescription = endpoints.map(\.description).joined(separator: ", ")
 
         // Отправка в отдельном потоке, разбуженном самим анализом: в аудиоколбэке
@@ -464,9 +500,11 @@ final class AppModel: ObservableObject {
         thread.start()
         senderThread = thread
 
+        // Причина видна в `pmset -g assertions` и в Мониторинге системы. Это
+        // системный журнал, а он всюду английский — переводу не подлежит.
         activityToken = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .latencyCritical],
-            reason: "Потоковая передача спектра на ленты")
+            reason: "Streaming audio spectrum to LED strips")
 
         state = .silent
         startUITimer()
@@ -487,6 +525,7 @@ final class AppModel: ObservableObject {
         sender = nil
         senderThread = nil
         lastRestartReason = nil
+        lastRestartDetail = ""
 
         if let activityToken {
             ProcessInfo.processInfo.endActivity(activityToken)
@@ -511,7 +550,7 @@ final class AppModel: ObservableObject {
     /// счётчик кадров обязан остаться монотонным.
     func handleWake() {
         guard isRunning else { return }
-        session?.restart(reason: "пробуждение после сна")
+        session?.restart(reason: .restartWake)
     }
 
     // MARK: Обновление интерфейса
@@ -531,16 +570,19 @@ final class AppModel: ObservableObject {
     private func handle(_ event: CaptureSession.Event) {
         switch event {
         case .started(let sampleRate, _, let device):
-            sourceDescription = "\(device) · \(Int(sampleRate)) Гц"
+            sourceDevice = device
+            sourceRate = sampleRate
 
-        case .restarted(let reason):
-            sourceDescription = "\(session?.deviceName ?? "") · \(Int(session?.sampleRate ?? 0)) Гц"
+        case .restarted(let reason, let detail):
+            sourceDevice = session?.deviceName ?? ""
+            sourceRate = session?.sampleRate ?? 0
             lastRestartReason = reason
+            lastRestartDetail = detail
             silenceStartedAt = nil
             quietFrames = 0
 
-        case .failed(let message):
-            state = .failed(message)
+        case .failed(let reason, let detail):
+            state = .failed(reason, detail: detail)
 
         case .stopped:
             break
@@ -577,7 +619,7 @@ final class AppModel: ObservableObject {
         }
 
         if let failure = sender.lastError {
-            state = .failed(failure)
+            state = .failed(.failNetwork, detail: failure)
         }
 
         // Диагностика пересобирается два раза в секунду, а не десять, и

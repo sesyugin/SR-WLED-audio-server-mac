@@ -8,7 +8,7 @@ struct MenuContent: View {
     @State private var showingSettings = false
     @State private var showingDiagnostics = false
 
-    var body: some View {
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             if model.isFirstRun {
                 welcome
@@ -23,12 +23,12 @@ struct MenuContent: View {
             if case .noSignal = model.state {
                 permissionHint
             }
-            if case .failed(let message) = model.state {
-                failureHint(message)
+            if case .failed = model.state {
+                failureHint
             }
 
             if let reason = model.lastRestartReason {
-                Label("Захват пересобран: \(reason)", systemImage: "arrow.triangle.2.circlepath")
+                Label(restartNote(reason), systemImage: "arrow.triangle.2.circlepath")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -43,25 +43,45 @@ struct MenuContent: View {
         .frame(width: 300)
     }
 
+    /// Содержимое в прокрутке: попап раньше был прибит к 420 точкам по высоте,
+    /// а с раскрытыми настройками и диагностикой содержимое переваливает за 700 —
+    /// нижняя часть, вместе с кнопкой «применить», просто срезалась. Прокрутка
+    /// включается сама и только когда содержимое не поместилось.
+    var body: some View {
+        ScrollView(.vertical) {
+            content
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(width: 300)
+        .frame(maxHeight: 620)
+        // Направление письма — снаружи прокрутки: иначе в арабском и урду
+        // зеркалится содержимое, а полоса прокрутки остаётся справа.
+        .environment(\.layoutDirection, model.language.isRightToLeft ? .rightToLeft : .leftToRight)
+    }
+
+    /// «Захват пересобран: сменилось устройство вывода: AirPods → Динамики».
+    /// Подробность приходит из ядра и не переводится — это имена и числа.
+    private func restartNote(_ reason: S) -> String {
+        let head = "\(model.localized(.captureRestarted)): \(model.localized(reason))"
+        return model.lastRestartDetail.isEmpty ? head : "\(head): \(model.lastRestartDetail)"
+    }
+
     // MARK: Части
 
     /// Экран первого запуска: объясняем, что попросим и зачем, до системных диалогов.
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("Спектр звука — на ленты")
+            Text(model.localized(.welcomeTitle))
                 .font(.system(size: 13, weight: .semibold))
-            Text("Программа слушает то, что играет на компьютере, разбирает на 16 полос "
-                 + "и шлёт их по сети на ленты с WLED.")
+            Text(model.localized(.welcomeIntro))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("При первом запуске система спросит два разрешения: на запись системного "
-                 + "звука и на доступ в локальную сеть. Сам звук никуда не передаётся и "
-                 + "не сохраняется — в сеть уходят только 44 байта спектра на кадр.")
+            Text(model.localized(.welcomeBody))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Проверь адреса лент в настройках и нажми «Запустить».")
+            Text(model.localized(.welcomeAction))
                 .font(.system(size: 11, weight: .medium))
         }
         .padding(10)
@@ -73,10 +93,10 @@ struct MenuContent: View {
             Image(systemName: model.state.symbol)
                 .foregroundStyle(statusColor)
             VStack(alignment: .leading, spacing: 1) {
-                Text(model.state.title)
+                Text(model.localized(model.stateKey))
                     .font(.system(size: 13, weight: .semibold))
                 if model.isRunning {
-                    Text("\(model.packetsPerSecond) пакетов/с")
+                    Text("\(model.packetsPerSecond) \(model.localized(.packetsPerSecond))")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -98,12 +118,12 @@ struct MenuContent: View {
 
     private var permissionHint: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Звук читается, но в нём одни нули.")
+            Text(model.localized(.permissionTitle))
                 .font(.system(size: 11, weight: .medium))
-            Text("Обычно это значит, что не выдано разрешение на запись системного звука.")
+            Text(model.localized(.permissionBody))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-            Button("Открыть настройки приватности") {
+            Button(model.localized(.openPrivacy)) {
                 let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture")!
                 NSWorkspace.shared.open(url)
             }
@@ -113,31 +133,43 @@ struct MenuContent: View {
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
     }
 
-    private func failureHint(_ message: String) -> some View {
-        Text(message)
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(9)
-            .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+    /// Отказ: причина на языке интерфейса, под ней — текст системной ошибки как есть.
+    private var failureHint: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(model.localized(model.stateKey))
+                .font(.system(size: 11, weight: .medium))
+            if !model.stateDetail.isEmpty {
+                Text(model.stateDetail)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(9)
+        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
     }
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 5) {
             if model.isRunning {
-                detailRow("Источник", model.sourceDescription)
-                detailRow("Отправка", model.destinationDescription)
-                detailRow("Всего пакетов", "\(model.totalPackets)")
+                detailRow(model.localized(.source), model.sourceDescription)
+                detailRow(model.localized(.destination), model.destinationDescription)
+                detailRow(model.localized(.totalPackets), "\(model.totalPackets)")
             } else {
-                detailRow("Отправка", destinationPreview)
+                detailRow(model.localized(.destination), destinationPreview)
             }
-            detailRow("Обработка", model.useOriginalBehaviour ? "как в оригинале" : "исправленная")
+            detailRow(model.localized(.processing),
+                      model.localized(model.useOriginalBehaviour ? .processingOriginal : .processingFixed))
         }
     }
 
     private var destinationPreview: String {
         let endpoints = PacketSender.resolveEndpoints(settings: model.buildSettings())
-        return endpoints.isEmpty ? "не задана" : endpoints.map(\.description).joined(separator: ", ")
+        return endpoints.isEmpty
+            ? model.localized(.notSet)
+            : endpoints.map(\.description).joined(separator: ", ")
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {
@@ -156,29 +188,38 @@ struct MenuContent: View {
 
     private var controls: some View {
         VStack(spacing: 8) {
-            HStack {
-                Button(model.isRunning ? "Остановить" : "Запустить") {
+            // Пуск отдельной строкой во всю ширину, а не в ряд с остальными.
+            // В ряду из трёх кнопок надписи не помещались: по замеру немецкий
+            // ряд требовал 347 pt при 272 доступных, и так в восьми языках
+            // из шестнадцати. Главное действие к тому же заслуживает своей строки.
+            HStack(spacing: 8) {
+                Button(model.localized(model.isRunning ? .stop : .start)) {
                     model.isRunning ? model.stop() : model.start()
                 }
-                .keyboardShortcut(.return)
+                // Cmd-Return, а не голый Return: рядом два текстовых поля,
+                // а голый Return делает кнопку кнопкой по умолчанию — и запуск
+                // случался бы при вводе адреса ленты.
+                .keyboardShortcut(.return, modifiers: .command)
+                .frame(maxWidth: .infinity)
 
-                Button(showingSettings ? "Скрыть настройки" : "Настройки") {
-                    withAnimation(.easeInOut(duration: 0.15)) { showingSettings.toggle() }
-                }
-                Spacer()
-                Button("Выход") {
+                Button(model.localized(.quit)) {
                     model.stop()
                     NSApplication.shared.terminate(nil)
                 }
                 .keyboardShortcut("q")
             }
 
-            HStack {
-                Button(showingDiagnostics ? "Скрыть диагностику" : "Диагностика") {
+            // Раскрывашки называют раздел, а не действие: у кнопки со стрелкой
+            // состояние несёт стрелка. Прежние «Скрыть настройки» и «Скрыть
+            // диагностику» были ещё и самыми длинными строками во всей таблице.
+            HStack(spacing: 8) {
+                disclosure(.settings, open: showingSettings) {
+                    withAnimation(.easeInOut(duration: 0.15)) { showingSettings.toggle() }
+                }
+                disclosure(.diagnostics, open: showingDiagnostics) {
                     withAnimation(.easeInOut(duration: 0.15)) { showingDiagnostics.toggle() }
                 }
-                .font(.system(size: 11))
-                Spacer()
+                Spacer(minLength: 0)
             }
 
             if showingDiagnostics {
@@ -189,6 +230,25 @@ struct MenuContent: View {
                 SettingsPane(model: model)
             }
         }
+    }
+
+    /// Кнопка-раскрывашка: стрелка показывает состояние, подпись называет раздел.
+    private func disclosure(_ key: S, open: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                Text(model.localized(key))
+            }
+            .font(.system(size: 11))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverFill(cornerRadius: 6)
+        .animation(.easeOut(duration: 0.15), value: open)
     }
 }
 
@@ -223,7 +283,7 @@ struct DiagnosticsPane: View {
                 }
             }
 
-            Button("Скопировать диагностику") {
+            Button(model.localized(.copyDiagnostics)) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(model.diagnostics.asText(language: model.language), forType: .string)
             }
@@ -250,36 +310,36 @@ struct SettingsPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Picker("Режим", selection: $model.sendMode) {
-                Text("Списком адресов").tag(Settings.SendMode.targetIPList)
-                Text("Broadcast по сети").tag(Settings.SendMode.broadcastLAN)
-                Text("Broadcast подсети").tag(Settings.SendMode.broadcastSubnet)
-                Text("Multicast").tag(Settings.SendMode.multicast)
+            Picker(model.localized(.sendMode), selection: $model.sendMode) {
+                Text(model.localized(.modeTargetList)).tag(Settings.SendMode.targetIPList)
+                Text(model.localized(.modeBroadcastLAN)).tag(Settings.SendMode.broadcastLAN)
+                Text(model.localized(.modeBroadcastSubnet)).tag(Settings.SendMode.broadcastSubnet)
+                Text(model.localized(.modeMulticast)).tag(Settings.SendMode.multicast)
             }
             .pickerStyle(.menu)
 
             if model.sendMode == .targetIPList || model.sendMode == .broadcastSubnet {
                 VStack(alignment: .leading, spacing: 3) {
-                    TextField("192.168.1.50, 192.168.1.51", text: $model.targets)
+                    TextField(model.localized(.targetsPlaceholder), text: $model.targets)
                         .textFieldStyle(.roundedBorder)
-                    Text("Адреса лент через запятую")
+                    Text(model.localized(.targetsNote))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
             }
 
             HStack {
-                Text("Порт").font(.system(size: 11))
+                Text(model.localized(.port)).font(.system(size: 11))
                 TextField("11988", value: $model.port, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 70)
                     .monospacedDigit()
             }
 
-            Toggle("Спектр в строке меню", isOn: $model.showSpectrumInMenuBar)
+            Toggle(model.localized(.spectrumInMenuBar), isOn: $model.showSpectrumInMenuBar)
                 .font(.system(size: 11))
 
-            Toggle("Запускать при входе в систему", isOn: $model.launchAtLogin)
+            Toggle(model.localized(.launchAtLogin), isOn: $model.launchAtLogin)
                 .font(.system(size: 11))
             if let problem = model.loginItemProblem {
                 Text(problem)
@@ -288,13 +348,13 @@ struct SettingsPane: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Toggle("Обработка как в оригинале", isOn: $model.useOriginalBehaviour)
+            Toggle(model.localized(.originalBehaviour), isOn: $model.useOriginalBehaviour)
                 .font(.system(size: 11))
-            Text("Для сравнения: возвращает поведение Windows-версии целиком.")
+            Text(model.localized(.originalBehaviourNote))
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
 
-            Button("Применить и перезапустить") {
+            Button(model.localized(.applyRestart)) {
                 model.restart()
             }
             .disabled(!model.isRunning)

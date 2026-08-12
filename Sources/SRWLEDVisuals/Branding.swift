@@ -3,13 +3,17 @@ import SwiftUI
 /// Фирменный стиль.
 public enum Brand {
     /// Имя приложения — то, что видно в Dock, в строке меню и в списках системы.
-    public static let name = "SR-WLED-Server-Auralis-macos"
-    /// Короткая форма для тесных мест: шапка окна, подпись под знаком.
-    /// Полное имя туда не влезает и обрезается многоточием на середине.
-    public static let shortName = "Auralis"
+    ///
+    /// Одно слово, а не «SR-WLED-Server-Auralis-macos»: то длинное имя опознаёт
+    /// файл на странице релизов, а в Dock оно обрезается многоточием на середине
+    /// и не читается вовсе. Длинное имя живёт теперь только на архиве релиза.
+    public static let name = "Auralis"
     public static let tagline = "Sound into light"
-    /// Полное имя для окна «О программе» и системных списков.
-    public static let fullName = "SR-WLED-Server-Auralis-macos"
+
+    /// Страница проекта. Одно место на всю программу: этот же адрес идёт в окно
+    /// «О программе». Пока репозиторий не создан, здесь заглушка — перед публикацией
+    /// её обязан заменить настоящий адрес.
+    public static let repository = "https://github.com/"
 
     /// Фирменные цвета. Один тёплый акцент и глубокий фон — та же логика,
     /// что и в визуализации: цвет один, работает яркость.
@@ -189,7 +193,7 @@ public struct BrandLockup: View {
             BrandMark()
                 .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 0) {
-                Text(Brand.shortName)
+                Text(Brand.name)
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .kerning(0.6)
                     .foregroundStyle(.white)

@@ -1,0 +1,65 @@
+name: Проверки
+
+# Раннер без звуковых устройств и без лент в сети — и это ровно то, на что
+# рассчитаны проверки: ни одна не трогает CoreAudio и не шлёт пакеты наружу.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # macOS 14 — минимальная версия, где есть CoreAudio process tap,
+    # то есть та же граница, что объявлена в Package.swift.
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Версия Swift
+        run: swift --version
+
+      - name: Сборка
+        # Предупреждения держим на нуле: ошибкой они станут только здесь,
+        # чтобы локальная сборка не мешала работать над незаконченным кодом.
+        run: swift build -c release -Xswiftc -warnings-as-errors
+
+      - name: Проверки ядра
+        run: ./scripts/test.sh
+
+      - name: Сборка бандла
+        # Проверяем весь путь до .app: иконка, переводы разрешений, plutil, подпись.
+        run: ./scripts/build-app.sh
+
+      - name: Бандл собран правильно
+        run: |
+          set -euo pipefail
+          app="dist/Auralis.app"
+
+          test -x "$app/Contents/MacOS/Auralis"
+          test -f "$app/Contents/Resources/Auralis.icns"
+          codesign --verify --strict "$app"
+
+          # Шестнадцать языков в интерфейсе — шестнадцать переводов диалога
+          # разрешений. Расхождение здесь означает, что кто-то добавил язык
+          # в таблицу Swift и забыл про scripts/make-infoplist-strings.sh.
+          found=$(find "$app/Contents/Resources" -maxdepth 1 -name "*.lproj" | wc -l | tr -d ' ')
+          if [ "$found" != "16" ]; then
+              echo "переводов разрешений $found вместо 16" >&2
+              exit 1
+          fi
+
+          # Пустая строка разрешения — диалог без объяснения, отказ в правах
+          # и захват, возвращающий нули.
+          for strings in "$app"/Contents/Resources/*.lproj/InfoPlist.strings; do
+              plutil -lint "$strings" >/dev/null
+              grep -q "NSAudioCaptureUsageDescription" "$strings"
+              grep -q "NSLocalNetworkUsageDescription" "$strings"
+          done
+
+          echo "бандл в порядке: $(find "$app" -type f | wc -l | tr -d ' ') файлов"

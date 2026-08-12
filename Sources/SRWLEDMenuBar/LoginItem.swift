@@ -1,5 +1,6 @@
 import Foundation
 import ServiceManagement
+import SRWLEDCore
 
 /// Автозапуск при входе в систему.
 ///
@@ -16,14 +17,13 @@ enum LoginItem {
 
         var isOn: Bool { self == .enabled }
 
-        var explanation: String? {
+        /// Ключ объяснения, а не готовая строка: текст показывается в панели
+        /// настроек и обязан быть на языке интерфейса.
+        var explanation: S? {
             switch self {
-            case .requiresApproval:
-                return "Разреши запуск в Системных настройках → Основные → Объекты входа"
-            case .notSupported:
-                return "Автозапуск доступен только для приложения, установленного в /Applications"
-            default:
-                return nil
+            case .requiresApproval: return .loginNeedsApproval
+            case .notSupported: return .loginNotSupported
+            default: return nil
             }
         }
     }

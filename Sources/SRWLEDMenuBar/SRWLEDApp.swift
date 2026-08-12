@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller.install(model: AppModel.shared)
             statusItem = controller
             AppModel.shared.startAutomaticallyIfReady()
+            Self.closeRestoredAboutWindow()
         }
 
         // После сна аудиоустройства нередко возвращаются с другими параметрами,
@@ -27,6 +28,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { _ in
             MainActor.assumeIsolated {
                 AppModel.shared.handleWake()
+            }
+        }
+    }
+
+    /// Закрывает «О программе», если его вернуло восстановление окон.
+    ///
+    /// macOS запоминает открытые окна и открывает их снова при следующем запуске.
+    /// Для главного окна это правильно, а для «О программе» — нет: посмотрел
+    /// один раз, и оно встречает тебя при каждом запуске, пока не догадаешься
+    /// закрыть его перед выходом. `restorationBehavior` появился только
+    /// в macOS 15, а нижняя граница у нас 14.2 — поэтому закрываем руками.
+    @MainActor
+    private static func closeRestoredAboutWindow() {
+        // На следующем витке цикла: во время самого запуска восстановленные
+        // окна ещё не созданы.
+        DispatchQueue.main.async {
+            for window in NSApp.windows
+            where window.identifier?.rawValue.contains("about") == true {
+                window.close()
             }
         }
     }
@@ -60,7 +80,7 @@ struct SRWLEDApp: App {
 
     var body: some Scene {
         // Главное окно: значок в Dock, крупная визуализация, все настройки.
-        Window(Brand.shortName, id: "main") {
+        Window(Brand.name, id: "main") {
             MainWindow(model: model)
         }
         .defaultSize(width: 900, height: 560)
@@ -71,7 +91,7 @@ struct SRWLEDApp: App {
             }
         }
 
-        Window("О программе", id: "about") {
+        Window(model.localized(.aboutApp), id: "about") {
             AboutWindow(model: model)
         }
         .windowResizability(.contentSize)

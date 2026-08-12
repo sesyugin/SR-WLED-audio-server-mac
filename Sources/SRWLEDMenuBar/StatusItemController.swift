@@ -44,8 +44,13 @@ final class StatusItemController: NSObject {
 
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 300, height: 420)
-        popover.contentViewController = NSHostingController(rootView: MenuContent(model: model))
+        // Размер берётся у содержимого, а не назначается: прежние 420 точек
+        // резали попап с раскрытыми настройками, и кнопка «применить и
+        // перезапустить» оказывалась за краем. Верхнюю границу держит уже
+        // сам MenuContent.
+        let controller = NSHostingController(rootView: MenuContent(model: model))
+        controller.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = controller
         self.popover = popover
 
         redraw()
@@ -87,8 +92,9 @@ final class StatusItemController: NSObject {
             guard drawnAsSpectrum != false || button.image == nil else { return }
             drawnAsSpectrum = false
             drawnBands = []
+            // Описание для голосового доступа читается вслух — на языке интерфейса.
             let symbol = NSImage(systemSymbolName: model.state.symbol,
-                                 accessibilityDescription: model.state.title)
+                                 accessibilityDescription: model.localized(model.stateKey))
             symbol?.isTemplate = true
             button.image = symbol
         }

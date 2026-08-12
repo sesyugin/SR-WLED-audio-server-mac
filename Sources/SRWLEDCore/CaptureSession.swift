@@ -8,10 +8,15 @@ import Foundation
 /// на переключении наушников — значит начать счётчик заново, и WLED-MM отбросит пакеты.
 public final class CaptureSession: @unchecked Sendable {
 
+    /// Событие захвата.
+    ///
+    /// Причина — ключ перевода, подробность — то, что не переводят: имена устройств,
+    /// числа, текст системной ошибки. Раньше сюда клали готовую русскую строку,
+    /// и она доезжала до интерфейса на любом языке.
     public enum Event: Sendable {
         case started(sampleRate: Double, channels: Int, device: String)
-        case restarted(reason: String)
-        case failed(String)
+        case restarted(reason: S, detail: String)
+        case failed(reason: S, detail: String)
         case stopped
     }
 
@@ -71,7 +76,7 @@ public final class CaptureSession: @unchecked Sendable {
 
     /// Принудительная пересборка. Нужна после пробуждения: устройства нередко
     /// возвращаются с другими параметрами, а уведомления об этом приходят не всегда.
-    public func restart(reason: String) {
+    public func restart(reason: S) {
         restartQueue.async { [weak self] in
             guard let self else { return }
 
@@ -84,7 +89,7 @@ public final class CaptureSession: @unchecked Sendable {
             do {
                 try self.startCapture()
             } catch {
-                self.onEvent(.failed("после \(reason) захват не поднялся: \(error)"))
+                self.onEvent(.failed(reason: .failRestart, detail: "\(error)"))
                 return
             }
 
@@ -94,7 +99,7 @@ public final class CaptureSession: @unchecked Sendable {
             self.lock.unlock()
             watcher?.start(watching: deviceID)
 
-            self.onEvent(.restarted(reason: reason))
+            self.onEvent(.restarted(reason: reason, detail: ""))
         }
     }
 
@@ -169,7 +174,7 @@ public final class CaptureSession: @unchecked Sendable {
             do {
                 try self.startCapture()
             } catch {
-                self.onEvent(.failed("после смены устройства захват не поднялся: \(error)"))
+                self.onEvent(.failed(reason: .failRestart, detail: "\(error)"))
                 return
             }
 
@@ -184,13 +189,15 @@ public final class CaptureSession: @unchecked Sendable {
             // на нём мы уже не увидим.
             watcher?.start(watching: deviceID)
 
-            var reason = change.rawValue
+            // Подробность — только имена и числа: их не переводят, и собрать их
+            // здесь можно, не зная языка интерфейса.
+            var detail = ""
             if newDevice != previousDevice {
-                reason += ": \(previousDevice) → \(newDevice)"
+                detail = "\(previousDevice) → \(newDevice)"
             } else if newRate != previousRate {
-                reason += ": \(Int(previousRate)) → \(Int(newRate)) Гц"
+                detail = "\(Int(previousRate)) → \(Int(newRate))"
             }
-            self.onEvent(.restarted(reason: reason))
+            self.onEvent(.restarted(reason: change.key, detail: detail))
         }
     }
 }

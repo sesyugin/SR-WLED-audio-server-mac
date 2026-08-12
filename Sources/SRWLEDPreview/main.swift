@@ -2,8 +2,20 @@ import AppKit
 import SwiftUI
 import SRWLEDVisuals
 
-// Рендерит кадры визуализации в PNG — чтобы смотреть на результат, а не гадать.
-// Не входит в приложение, нужен только при работе над оформлением.
+// Рендерит кадры визуализации и знак приложения в PNG. Сам в приложение не входит:
+// нужен при работе над оформлением и при сборке бандла — иконку .icns собирают
+// из того, что он разложит.
+//
+//   SRWLEDPreview                  кадры сцены и иконка
+//   SRWLEDPreview --icon-only      только иконка (сборка бандла)
+//
+// Куда писать: SRWLED_ICONSET — каталог iconset, SRWLED_OUT — каталог кадров.
+
+let arguments = Set(CommandLine.arguments.dropFirst())
+let iconsetPath = ProcessInfo.processInfo.environment["SRWLED_ICONSET"]
+    ?? NSTemporaryDirectory() + "Auralis.iconset"
+let outputPath = ProcessInfo.processInfo.environment["SRWLED_OUT"]
+    ?? NSTemporaryDirectory()
 
 @MainActor
 func render(name: String, bands: [Float], peaks: [Float], palette: Palette, size: CGSize) {
@@ -29,18 +41,28 @@ func render(name: String, bands: [Float], peaks: [Float], palette: Palette, size
         return
     }
 
-    let url = URL(fileURLWithPath: "/tmp/srwled-preview-\(name).png")
+    let url = URL(fileURLWithPath: outputPath)
+        .appendingPathComponent("srwled-preview-\(name).png")
     try? png.write(to: url)
     print("готово: \(url.path)")
 }
 
-// Иконка приложения: рисуем знак и раскладываем по размерам для iconutil.
+/// Иконка приложения: рисуем знак и раскладываем по размерам для iconutil.
+///
+/// Возвращает признак успеха, а не молчит: сборка бандла на этом стоит, и
+/// незамеченный провал раньше давал приложение вовсе без иконки — либо, что хуже,
+/// с иконкой от прошлой сборки, случайно оставшейся в общем /tmp.
 @MainActor
-func renderIcon() {
+func renderIcon(into directory: String) -> Bool {
     let sizes = [16, 32, 64, 128, 256, 512, 1024]
-    let directory = "/tmp/Auralis.iconset"
-    try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+    do {
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+    } catch {
+        FileHandle.standardError.write(Data("не удалось создать \(directory): \(error)\n".utf8))
+        return false
+    }
 
+    var written = 0
     for side in sizes {
         for scale in [1, 2] {
             let pixels = side * scale
@@ -54,20 +76,25 @@ func renderIcon() {
                   let png = bitmap.representation(using: .png, properties: [:]) else { continue }
             let suffix = scale == 1 ? "" : "@2x"
             let path = "\(directory)/icon_\(side)x\(side)\(suffix).png"
-            try? png.write(to: URL(fileURLWithPath: path))
+            do {
+                try png.write(to: URL(fileURLWithPath: path))
+                written += 1
+            } catch {
+                FileHandle.standardError.write(Data("не записан \(path): \(error)\n".utf8))
+                return false
+            }
         }
     }
-    print("иконка разложена: \(directory)")
 
-    // Отдельный крупный кадр знака — для README и страницы релиза.
-    let renderer = ImageRenderer(content: AppIconCanvas().frame(width: 512, height: 512))
-    renderer.scale = 2
-    if let image = renderer.nsImage, let tiff = image.tiffRepresentation,
-       let bitmap = NSBitmapImageRep(data: tiff),
-       let png = bitmap.representation(using: .png, properties: [:]) {
-        try? png.write(to: URL(fileURLWithPath: "/tmp/srwled-preview-icon.png"))
-        print("готово: /tmp/srwled-preview-icon.png")
+    // iconutil откажется собирать неполный набор, а молча пропущенный размер
+    // всплыл бы уже готовым бандлом с пустым местом вместо значка.
+    let expected = sizes.reduce(0) { $0 + ($1 * 2 <= 1024 ? 2 : 1) }
+    guard written == expected else {
+        FileHandle.standardError.write(Data("нарисовано \(written) размеров из \(expected)\n".utf8))
+        return false
     }
+    print("иконка разложена: \(directory) — \(written) размеров")
+    return true
 }
 
 // Три характерных состояния: тихо, средняя музыка, громкий бас.
@@ -113,10 +140,17 @@ MainActor.assumeIsolated {
         benchmark(frames: 24)
         exit(0)
     }
+
+    // Ненулевой код возврата обязателен: сборка бандла падает на нём, а не
+    // доезжает до конца с приложением без иконки.
+    if arguments.contains("--icon-only") {
+        exit(renderIcon(into: iconsetPath) ? 0 : 1)
+    }
+
     render(name: "quiet", bands: quiet, peaks: quiet, palette: .amber, size: size)
     render(name: "music", bands: music, peaks: music.map { min(1, $0 + 0.1) },
            palette: .amber, size: size)
     render(name: "loud", bands: loud, peaks: loud, palette: .amber, size: size)
     render(name: "ice", bands: music, peaks: music, palette: .ice, size: size)
-    renderIcon()
+    if !renderIcon(into: iconsetPath) { exit(1) }
 }

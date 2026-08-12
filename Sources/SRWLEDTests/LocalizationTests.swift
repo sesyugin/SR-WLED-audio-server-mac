@@ -47,6 +47,35 @@ func runLocalizationTests(_ t: TestRunner) {
             }
         }
 
+        t.test("Подстановок в переводе столько же, сколько в английском") { t in
+            // Проверять один ключ мало: потерянная подстановка молча съедает
+            // имя устройства или число, а лишняя оставляет на экране «%@».
+            func count(_ text: String) -> Int {
+                text.components(separatedBy: "%@").count - 1
+            }
+            for key in S.allCases {
+                let expected = count(L10n.string(key, .english))
+                for language in Language.allCases where language != .english {
+                    t.expectEqual(count(L10n.string(key, language)), expected,
+                                  "\(language.rawValue)/\(key.rawValue): подстановок %@")
+                }
+            }
+        }
+
+        t.test("Кириллица только там, где ей место") { t in
+            // Русский текст, скопированный в чужую таблицу, иначе доедет
+            // до человека, который его не прочтёт.
+            let cyrillicLanguages: Set<Language> = [.russian, .ukrainian, .belarusian]
+            let cyrillic = CharacterSet(charactersIn: "абвгдежзийклмнопрстуфхцчшщъыьэюяёіїєўґ")
+            for language in Language.allCases where !cyrillicLanguages.contains(language) {
+                guard let table = L10n.table[language] else { continue }
+                for (key, value) in table {
+                    t.expect(value.lowercased().rangeOfCharacter(from: cyrillic) == nil,
+                             "\(language.rawValue)/\(key.rawValue): кириллица в переводе — «\(value)»")
+                }
+            }
+        }
+
         t.test("Языки справа налево помечены верно") { t in
             t.expect(Language.arabic.isRightToLeft, "арабский пишется справа налево")
             t.expect(Language.urdu.isRightToLeft, "урду пишется справа налево")
@@ -62,6 +91,21 @@ func runLocalizationTests(_ t: TestRunner) {
             let resolved = Language.systemDefault
             t.expect(Language.allCases.contains(resolved),
                      "systemDefault вернул неподдерживаемый язык")
+        }
+
+        t.test("Причина пересборки захвата приходит ключом и переводится") { t in
+            // Ядро отдаёт наружу ключ, а не готовую строку: до этой правки
+            // причина уезжала в интерфейс по-русски на всех шестнадцати языках.
+            let changes: [AudioDeviceWatcher.Change] = [.defaultOutputDevice, .sampleRate, .deviceList]
+            t.expectEqual(Set(changes.map(\.key)).count, changes.count,
+                          "у каждой причины должен быть свой ключ")
+            for change in changes {
+                for language in Language.allCases {
+                    let text = L10n.string(change.key, language)
+                    t.expect(text != change.key.rawValue,
+                             "\(language.rawValue): причина \(change.key.rawValue) без перевода")
+                }
+            }
         }
 
         t.test("Английский служит запасным для любого ключа") { t in

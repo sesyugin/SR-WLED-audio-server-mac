@@ -65,61 +65,53 @@ struct AboutWindow: View {
     // MARK: Разделы
 
     private var about: some View {
-        section("Что это") {
-            Text("Слушает то, что играет на компьютере, раскладывает звук на 16 частотных "
-                 + "полос и 47 раз в секунду отправляет их по сети на светодиодные ленты "
-                 + "с прошивкой WLED. Звук никуда не передаётся и нигде не сохраняется — "
-                 + "в сеть уходят только 44 байта спектра на кадр.")
+        section(model.localized(.aboutWhat)) {
+            Text(model.localized(.aboutBody))
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.75))
                 .fixedSize(horizontal: false, vertical: true)
 
-            row("Версия", version)
-            row("Платформа", "macOS 14.2 и новее")
+            row(model.localized(.aboutVersion), version)
+            row(model.localized(.aboutPlatform), model.localized(.aboutPlatformValue))
         }
     }
 
     private var author: some View {
-        section("Автор") {
-            Text("Захар Сесюгин")
+        section(model.localized(.aboutAuthor)) {
+            Text(model.localized(.authorName))
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.white)
-            Text("Разработчик программно-аппаратных решений: встраиваемые системы и прошивки, "
-                 + "электроника и схемотехника, софт и приложения, робототехника и интернет "
-                 + "вещей, промышленная автоматизация. Ведёт проекты от идеи до внедрения "
-                 + "и образовательные программы по высоким технологиям для старшеклассников.")
+            Text(model.localized(.authorBio))
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.75))
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
-                linkButton("Почта", "mailto:sesyuginzd@gmail.com")
+                linkButton(model.localized(.linkMail), "mailto:sesyuginzd@gmail.com")
                 linkButton("Telegram", "https://t.me/SesyuginZD")
-                linkButton("GitHub", "https://github.com/")
+                linkButton("GitHub", Brand.repository)
             }
             .padding(.top, 2)
         }
     }
 
     private var credits: some View {
-        section("На чьих плечах") {
+        section(model.localized(.aboutCredits)) {
             creditRow("SR-WLED-audio-server-win",
-                      "Оригинал под Windows, поведение которого здесь воспроизведено",
+                      model.localized(.creditOriginal),
                       "https://github.com/Victoare/SR-WLED-audio-server-win")
             creditRow("WLED",
-                      "Прошивка лент, протокол звуковой синхронизации и таблица полос",
+                      model.localized(.creditWLED),
                       "https://github.com/wled/WLED")
             creditRow("WLED MoonModules",
-                      "Ответвление прошивки, под которое настроена совместимость",
+                      model.localized(.creditMM),
                       "https://github.com/MoonModules/WLED-MM")
         }
     }
 
     private var legal: some View {
-        section("Лицензия") {
-            Text("GPL-3.0 — унаследована от оригинального проекта. Программа не связана "
-                 + "с проектом WLED и не является его официальным приложением; "
-                 + "название WLED упомянуто только для указания совместимости.")
+        section(model.localized(.aboutLicense)) {
+            Text(model.localized(.licenseNote))
                 .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.55))
                 .fixedSize(horizontal: false, vertical: true)
@@ -143,7 +135,9 @@ struct AboutWindow: View {
         HStack(spacing: 10) {
             Text(label)
                 .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.45))
+                // 0.45 давало ровно 4.50:1 на Brand.ink — впритык к норме
+                // и ниже неё при малейшем сдвиге фона. 0.5 даёт 5.3:1.
+                .foregroundStyle(.white.opacity(0.5))
                 .frame(width: 90, alignment: .leading)
             Text(value)
                 .font(.system(size: 11))
@@ -164,6 +158,7 @@ struct AboutWindow: View {
         .background(.white.opacity(0.09), in: Capsule())
         .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
         .foregroundStyle(.white.opacity(0.9))
+        .hoverFillOnDark(cornerRadius: 14, opacity: 0.10)
     }
 
     private func creditRow(_ title: String, _ detail: String, _ url: String) -> some View {
@@ -187,10 +182,15 @@ struct AboutWindow: View {
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 9))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(.white.opacity(0.45))
                     .padding(.top, 3)
             }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverFillOnDark(cornerRadius: 7, opacity: 0.08)
+        .padding(.horizontal, -6)
     }
 }

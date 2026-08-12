@@ -29,9 +29,6 @@ let package = Package(
                           dependencies: ["SRWLEDVisuals"],
                           path: "Sources/SRWLEDPreview"),
 
-        // Отладочный спайк: проверка захвата системного звука.
-        .executableTarget(name: "TapSpike", path: "Sources/TapSpike"),
-
         // Проверки ядра. Собственный прогонщик вместо XCTest/swift-testing: оба идут
         // только с Xcode, а проект должен проверяться на голых Command Line Tools.
         // Ни одна проверка не трогает аудиоустройства и не шлёт пакеты в реальную сеть.

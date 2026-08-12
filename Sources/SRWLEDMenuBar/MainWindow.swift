@@ -181,6 +181,7 @@ struct MainWindow: View {
                     .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
+            .hoverFillOnDark(cornerRadius: 7)
             .help(model.localized(model.animationEnabled ? .animationOff : .animationOn))
 
             Text(model.localized(model.animationEnabled ? .animationOn : .animationOff))
@@ -208,6 +209,7 @@ struct MainWindow: View {
                 .foregroundStyle(.white)
         }
         .buttonStyle(.plain)
+        .hoverFillOnDark(cornerRadius: 22, opacity: 0.10)
         .shadow(color: .black.opacity(0.4), radius: 14, y: 4)
         .padding(.bottom, 10)
     }
@@ -233,9 +235,10 @@ struct MainWindow: View {
                         appearanceSection
                     case .health:
                         if case .noSignal = model.state { permissionBlock }
+                        if case .failed = model.state { failureBlock }
                         diagnosticsSection
                         if let reason = model.lastRestartReason {
-                            Label("\(model.localized(.captureRestarted)): \(reason)",
+                            Label(restartNote(reason),
                                   systemImage: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
@@ -266,7 +269,10 @@ struct MainWindow: View {
                     .frame(maxWidth: .infinity)
             }
             .controlSize(.large)
-            .keyboardShortcut(.return)
+            // Cmd-Return, а не голый Return: во вкладке «куда слать» два
+            // текстовых поля, а голый Return делает эту кнопку кнопкой
+            // по умолчанию — и отправка начиналась бы прямо при вводе адреса.
+            .keyboardShortcut(.return, modifiers: .command)
 
             Button {
                 tab = .health
@@ -274,8 +280,11 @@ struct MainWindow: View {
                 Circle()
                     .fill(overallColour)
                     .frame(width: 9, height: 9)
+                    .padding(5)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .hoverFill(cornerRadius: 6)
             .help(model.localized(.diagnostics))
         }
         .padding(.horizontal, 14)
@@ -305,6 +314,7 @@ struct MainWindow: View {
                     .foregroundStyle(tab == item ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
+                .hoverFill(cornerRadius: 0, opacity: 0.06)
             }
         }
     }
@@ -661,6 +671,33 @@ struct MainWindow: View {
         }
         .padding(11)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// Отказ: причина на языке интерфейса, под ней — текст системной ошибки.
+    ///
+    /// Раньше отказ подменялся состоянием «нет сигнала», и человек видел совет
+    /// про разрешение на звук, когда на деле не был задан ни один адрес.
+    private var failureBlock: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(model.localized(model.stateKey))
+                .font(.system(size: 12, weight: .medium))
+            if !model.stateDetail.isEmpty {
+                Text(model.stateDetail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(11)
+        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// «Захват пересобран: сменилось устройство вывода: AirPods → Динамики».
+    private func restartNote(_ reason: S) -> String {
+        let head = "\(model.localized(.captureRestarted)): \(model.localized(reason))"
+        return model.lastRestartDetail.isEmpty ? head : "\(head): \(model.lastRestartDetail)"
     }
 
     // MARK: Мелочи

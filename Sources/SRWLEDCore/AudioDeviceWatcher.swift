@@ -13,10 +13,20 @@ import Foundation
 /// сетка полос и разрешение БПФ считаются от частоты.
 public final class AudioDeviceWatcher: @unchecked Sendable {
 
-    public enum Change: String, Sendable {
-        case defaultOutputDevice = "сменилось устройство вывода"
-        case sampleRate = "сменилась частота дискретизации"
-        case deviceList = "изменился список устройств"
+    public enum Change: Sendable {
+        case defaultOutputDevice
+        case sampleRate
+        case deviceList
+
+        /// Ключ перевода, а не готовая строка: причина пересборки видна в интерфейсе,
+        /// а он говорит на языке пользователя. Ядро языка не знает и знать не должно.
+        public var key: S {
+            switch self {
+            case .defaultOutputDevice: return .restartOutputDevice
+            case .sampleRate: return .restartSampleRate
+            case .deviceList: return .restartDeviceList
+            }
+        }
     }
 
     private let queue = DispatchQueue(label: "srwled.device.watcher")
