@@ -63,7 +63,9 @@ public struct SpectrumStrip: View {
 
 /// Оформление сцены.
 public enum SceneStyle: String, CaseIterable, Identifiable, Sendable {
-    /// Круговой спектр вокруг диска — как в оформлении музыкальных релизов.
+    /// Неоновое кольцо со знаком слева — оформление музыкальных релизов.
+    case neon
+    /// Круговой спектр вокруг диска.
     case ring
     /// Проволочная сфера, деформируемая спектром.
     case sphere
@@ -72,6 +74,7 @@ public enum SceneStyle: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
+        case .neon: return "Neon"
         case .ring: return "Ring"
         case .sphere: return "Sphere"
         }
