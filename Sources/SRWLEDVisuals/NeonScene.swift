@@ -17,6 +17,20 @@ public struct NeonScene: View {
     private let sampler: Sampler
     private let isRunning: Bool
     private let palette: Palette
+    /// Свой тон вместо палитрового. Столбики — единственное, что человек
+    /// правит на глаз прямо во время музыки, и ползунок тона под сценой
+    /// обязан доходить до них, не проходя через набор готовых гамм.
+    /// `nil` — брать тон из палитры.
+    private let tint: Double?
+
+    /// Тона сцены: свой, если задан. Свой тон разводится в вилку той же
+    /// ширины, что и у палитры, — на одном тоне столбики теряют перепад
+    /// между тихой и громкой полосой, на котором держится вся картинка.
+    private var hues: (deep: Double, hot: Double) {
+        guard let tint else { return palette.hues }
+        return (tint - 0.037, tint + 0.038)
+    }
+
     private let showsWordmark: Bool
 
     @State private var smoother = SpectrumSmoother()
@@ -25,11 +39,13 @@ public struct NeonScene: View {
     public init(sampler: @escaping Sampler,
                 isRunning: Bool,
                 palette: Palette = .amber,
+                tint: Double? = nil,
                 showsWordmark: Bool = true)
     {
         self.sampler = sampler
         self.isRunning = isRunning
         self.palette = palette
+        self.tint = tint
         self.showsWordmark = showsWordmark
     }
 

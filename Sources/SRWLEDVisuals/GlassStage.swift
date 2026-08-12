@@ -12,6 +12,10 @@ import SwiftUI
 /// фигуры в центре дают контраст, на котором держится картинка.
 struct GlassStage {
     let palette: Palette
+    /// Рисовать ли отражение в настиле. Отражение стоит второго прохода по
+    /// фигурам и порталу — это самая дорогая необязательная часть сцены,
+    /// и в лёгком качестве её нет.
+    var reflects: Bool = true
     /// Общая громкость: от неё зависит накал льда.
     let energy: Double
     /// Бас: от него дышат колонки и бочка.
@@ -79,11 +83,11 @@ struct GlassStage {
         // тел, и поднимать их поштучно — это триста мест, где можно забыть.
         // Помост рисуется исходной проекцией, от пола до своей крышки,
         // а всё остальное — этой: для неё ноль высоты приходится на настил.
-        let deck = maxHeight * 0.135
+        let deck = maxHeight * Self.deckLift
         let onDeck: Solid3D.Projection = { x, y, z in project(x, y - deck, z) }
 
-        let deckTop = drawPodium(&context, project: project, radius: radius,
-                                 base: base, deck: deck)
+        let deckTop = drawPodiumBase(&context, project: project, radius: radius,
+                                     base: base, deck: deck)
 
         // Рост фигур задан в долях высоты венца, положение — в долях его радиуса.
         // Знак z: положительный уходит от зрителя.
@@ -148,11 +152,22 @@ struct GlassStage {
         // ложится на экран круче высоты, и микрофон приходит музыканту к лицу
         // только при своём выносе к зрителю. Отодвинь стойку назад — головка
         // уедет выше макушки, подай вперёд — упадёт к поясу.
-        pieces += micStand(base: place(-0.400, -0.190), height: stand * 0.46,
-                           boom: (stand * 0.082, -stand * 0.112, radius * 0.045),
+        // Обе стойки отодвинуты от музыкантов, а журавли укорочены и опущены.
+        // Прежние приводили головку ровно на макушку: у гитариста конец
+        // журавля приходил в ту же точку кадра, что и темя, у клавишника
+        // на четыре пикселя правее неё. Читалось это не микрофоном у лица,
+        // а трубой, растущей у человека из головы, — и хуже того, само плечо
+        // журавля шло поперёк черепа. Чтобы стойка не легла на голову, конец
+        // её обязан останавливаться ЗА габаритом черепа, а не на нём: тогда
+        // плечо подходит сбоку и обрывается, не доходя до силуэта.
+        // Журавль у гитариста длиннее, потому что и стойка отодвинута дальше:
+        // короткий на отодвинутой стойке оставлял микрофон в полутора головах
+        // от лица, и стойка читалась стоящей сама по себе, а не при человеке.
+        pieces += micStand(base: place(-0.452, -0.190), height: stand * 0.46,
+                           boom: (stand * 0.104, -stand * 0.086, radius * 0.045),
                            phase: 1.1, project: onDeck, line: line)
-        pieces += micStand(base: place(0.402, -0.168), height: stand * 0.44,
-                           boom: (-stand * 0.070, -stand * 0.098, radius * 0.045),
+        pieces += micStand(base: place(0.455, -0.168), height: stand * 0.44,
+                           boom: (-stand * 0.074, -stand * 0.072, radius * 0.045),
                            phase: 2.9, project: onDeck, line: line)
 
         // Мониторы у края подиума, вдоль передней дуги. Вся передняя мелочь
@@ -171,12 +186,27 @@ struct GlassStage {
         // они теперь по всем трём приметам разом: калибр, доворот и завал.
         // Одинаковыми они и не бывают — на площадке это разные ящики из разных
         // комплектов, и ставит их ногой тот, кому за ними петь.
-        pieces += monitor(at: place(-0.392, -0.425), width: stand * 0.104, turn: -0.86,
+        // Передний ряд разложен по УГЛУ, а не на глаз по экрану. Четыре ящика
+        // стояли на дуге с шагом 19°, 37° и 32°: левая пара — клин и кофр —
+        // сбивалась в одно пятно, а справа от вокалиста зияла прореха вдвое
+        // шире. Шаги выровнены до 26°, 34° и 32°, причём самый широкий оставлен
+        // средним нарочно: в него смотрит вокалист, и это единственный просвет
+        // ряда, который обязан быть просветом. Радиусы у всех четырёх разные
+        // и остались разными — ровная дуга одинаковых ящиков читается забором.
+        pieces += monitor(at: place(-0.416, -0.402), width: stand * 0.104, turn: -0.86,
                           rake: 0.54, project: onDeck, line: line)
         // Средний клин довёрнут чуть вбок: поставленный анфас, он показывает
         // камере одну грань и читается плоской карточкой — тем же, чем читались
         // неразвёрнутые колонки портала.
-        pieces += monitor(at: place(0.000, -0.462), width: stand * 0.132, turn: 0.22,
+        // Он же уведён с оси вокалиста и выдвинут вперёд. Стоя ровно под ним,
+        // клин подходил верхним задним ребром точно под стопы: на кадре певец
+        // получался стоящим НА ящике, а сам ящик — единственной его опорой.
+        // Сдвиг вбок открывает под ногами настил, а вынос к зрителю опускает
+        // клин по экрану и разводит его ребро со стопами по высоте.
+        // Уведён он вправо, а не влево: слева на той же дуге уже стоит кофр,
+        // и сдвинутый к нему клин вставал с ним в одно пятно, а правая половина
+        // переднего края оставалась пустой.
+        pieces += monitor(at: place(0.118, -0.492), width: stand * 0.132, turn: 0.28,
                           rake: 0.41, project: onDeck, line: line)
         pieces += monitor(at: place(0.398, -0.395), width: stand * 0.116, turn: 0.46,
                           rake: 0.50, project: onDeck, line: line)
@@ -187,7 +217,7 @@ struct GlassStage {
         // Кофр и бухта разнесены по разным половинам и стоят чуть впереди
         // клиньев: встав с ними в один ряд, они удлинили бы ту же дугу,
         // от которой передний план и рассыпался.
-        pieces += roadCase(at: place(-0.208, -0.480), width: stand * 0.102, turn: 0.42,
+        pieces += roadCase(at: place(-0.179, -0.492), width: stand * 0.102, turn: 0.42,
                            project: onDeck, line: line)
         // Кабелей на сцене больше нет — ни бухты у правого клина, ни шнуров
         // от инструментов к порталу. Провод на этой камере всегда ложится
@@ -196,63 +226,175 @@ struct GlassStage {
         // шнур узнаётся шнуром, задать негде. Аппаратура на такой сцене
         // и без того понятно откуда звучит.
 
-        // Отражение в стекле настила. Зеркалится не всё: отражаются четыре
-        // фигуры и два стека портала — то, что на сцене крупное и светлое.
-        // Барабаны, стойки и ферма пропущены нарочно, и не только ради цены
-        // кадра: россыпь мелких трубок, отражённая под ногами, читается
-        // не отражением, а грязью на полу.
-        //
-        // Зеркало — та же проекция, но с высотой, отражённой относительно
-        // настила: точке на высоте h соответствует точка на -h под ним.
-        // Обрезка по контуру настила обязательна — за его краем отражению
-        // не в чем отражаться.
-        // Отражение поджато по высоте вдвое. Честное зеркало на этой камере
-        // тянет двойника едва ли не до края настила, и под сценой оказывается
-        // вторая сцена, спорящая с первой. Стекло тут не идеальное — в нём
-        // есть матовость, и отражение в такой плите всегда короче предмета.
-        let mirror: Solid3D.Projection = { x, y, z in project(x, -y * 0.52 - deck, z) }
-        var echo: [Solid3D.Piece] = []
-        echo += speaker(at: place(-0.545, 0.17), height: stand * 0.385, turn: -0.34,
-                        project: mirror, line: line)
-        echo += speaker(at: place(0.545, 0.17), height: stand * 0.385, turn: 0.34,
-                        project: mirror, line: line)
-        echo += guitarist(at: place(-0.30, -0.09), height: stand * 0.44,
-                          project: mirror, line: line)
-        echo += keyboardist(at: place(0.30, -0.07), height: stand * 0.42,
-                            project: mirror, line: line)
-        echo += vocalist(at: place(0.00, -0.37), height: stand * 0.414,
-                         project: mirror, line: line)
-        echo += drummer(at: place(0.00, 0.37), height: stand * 0.40,
-                        project: mirror, line: line)
-        // Отражение слабое и сортируется наоборот: под стеклом дальше от глаза
-        // то, что над ним ближе, — иначе руки зайдут за спину.
-        echo.sort { $0.depth < $1.depth }
-        var glass = context
-        glass.clip(to: deckTop)
-        glass.opacity = 0.15 + 0.06 * energy
-        for piece in echo {
-            piece.render(&glass)
-        }
+        // Отражение — самая дорогая необязательная часть кадра: второй
+        // проход по фигурам и порталу целиком. В лёгком качестве его нет.
+        if reflects {
+            // Отражение в стекле настила. Зеркалится не всё: отражаются четыре
+            // фигуры и два стека портала — то, что на сцене крупное и светлое.
+            // Барабаны, стойки и ферма пропущены нарочно, и не только ради цены
+            // кадра: россыпь мелких трубок, отражённая под ногами, читается
+            // не отражением, а грязью на полу.
+            //
+            // Зеркало — та же проекция, но с высотой, отражённой относительно
+            // настила: точке на высоте h соответствует точка на -h под ним.
+            // Обрезка по контуру настила обязательна — за его краем отражению
+            // не в чем отражаться.
+            // Отражение поджато по высоте вдвое. Честное зеркало на этой камере
+            // тянет двойника едва ли не до края настила, и под сценой оказывается
+            // вторая сцена, спорящая с первой. Стекло тут не идеальное — в нём
+            // есть матовость, и отражение в такой плите всегда короче предмета.
+            // Отражение ещё и уведено вбок. Плита стеклянная, а не зеркальная:
+            // луч входит в стекло, преломляется на входе и выходит уже смещённым.
+            // Сдвиг растёт с высотой точки — у ног он нулевой, у макушки
+            // наибольший, — и двойник от этого чуть заваливается, как отражение
+            // в витрине. Ровно совмещённый с предметом, он читался вторым телом,
+            // приклеенным снизу; уведённый — стеклом.
+            let refraction = radius * 0.030
+            let mirror: Solid3D.Projection = { x, y, z in
+                project(x + y * refraction / max(maxHeight, 1), -y * 0.52 - deck, z)
+            }
+            // Кого зеркалить: положение стопы и рост. Тот же список строит
+            // и маску гашения — иначе она разъедется с двойниками при первой же
+            // правке раскладки.
+            let mirrored: [(spot: (Double, Double), tall: Double,
+                            make: ((Double, Double), Double) -> [Solid3D.Piece])] = [
+                (place(-0.545, 0.17), stand * 0.385,
+                 { speaker(at: $0, height: $1, turn: -0.34, project: mirror, line: line) }),
+                (place(0.545, 0.17), stand * 0.385,
+                 { speaker(at: $0, height: $1, turn: 0.34, project: mirror, line: line) }),
+                (place(-0.30, -0.09), stand * 0.44,
+                 { guitarist(at: $0, height: $1, project: mirror, line: line) }),
+                (place(0.30, -0.07), stand * 0.42,
+                 { keyboardist(at: $0, height: $1, project: mirror, line: line) }),
+                (place(0.00, -0.37), stand * 0.414,
+                 { vocalist(at: $0, height: $1, project: mirror, line: line) }),
+                (place(0.00, 0.37), stand * 0.40,
+                 { drummer(at: $0, height: $1, project: mirror, line: line) }),
+            ]
+            var echo: [Solid3D.Piece] = []
+            // Тени касания из двойника выброшены. Список тел для отражения строят
+            // те же функции, что и саму фигуру, и пятна опоры приезжали в него
+            // вместе с костями — а у тени отражения не бывает: это не предмет,
+            // а недостаток света на полу. Хуже того, ядро пятна кладётся
+            // умножением, и внутри слоя, который потом складывается со сценой,
+            // оно выбивало в двойнике чёрную дыру — ровно у стоп, там, где
+            // отражение обязано быть самым плотным. На кадре под каждой фигурой
+            // расплывалась бурая клякса вместо золотого двойника, и настил
+            // читался не полированным, а заляпанным.
+            for object in mirrored {
+                echo += object.make(object.spot, object.tall).filter { !$0.isShadow }
+            }
+            // Отражение слабое и сортируется наоборот: под стеклом дальше от глаза
+            // то, что над ним ближе, — иначе руки зайдут за спину.
+            echo.sort { $0.depth < $1.depth }
+            var glass = context
+            glass.clip(to: deckTop)
+            // Каждый двойник гаснет по своей длине, а не по общей карте настила.
+            // Общей гасилкой это сделать нельзя в принципе: стеки портала стоят в
+            // глубине, их отражения кончаются в верхней трети настила, где любое
+            // гашение «к зрителю» ещё не началось, — и под колонками висел глухой
+            // прямоугольник с обрубленным низом, самая грязная деталь всего кадра.
+            // Маска ставится от стопы предмета и гаснет ровно на длине его же
+            // двойника: у настоящей плиты отражение так и живёт — резкое у ног,
+            // размытое в ничто на длине шага.
+            glass.clipToLayer { mask in
+                mask.blendMode = .plusLighter
+                for object in mirrored {
+                    // Верх тела — минус рост: у тел ось высоты направлена вниз,
+                    // и с плюсом маска уходила НАД настилом, вырождалась в полоску
+                    // в пиксель и стирала отражение начисто.
+                    let foot = mirror(object.spot.0, 0, object.spot.1)
+                    let tip = mirror(object.spot.0, -object.tall, object.spot.1)
+                    let reach = max(1, tip.0.y - foot.0.y)
+                    // Полуширина взята от роста: развёрнутый стек портала и
+                    // разведённые руки гитариста — самое широкое, что тут есть.
+                    let half = object.tall * 0.95 * foot.1
+                    let band = CGRect(x: foot.0.x - half, y: foot.0.y - reach * 0.2,
+                                      width: half * 2, height: reach * 1.5)
+                    mask.fill(Path(band),
+                              with: .linearGradient(
+                                  Gradient(stops: [
+                                      .init(color: .white, location: 0.0),
+                                      .init(color: .white.opacity(0.86), location: 0.22),
+                                      .init(color: .white.opacity(0.42), location: 0.55),
+                                      .init(color: .white.opacity(0.12), location: 0.80),
+                                      .init(color: .clear, location: 1.0),
+                                  ]),
+                                  startPoint: CGPoint(x: band.midX, y: foot.0.y),
+                                  endPoint: CGPoint(x: band.midX, y: foot.0.y + reach * 1.04)))
+                }
+            }
+            // Двойник кладётся сложением света, а не поверх заливкой. Тела стеклянные
+            // и полупрозрачные: положенные обычным способом, они не отражали пол,
+            // а закрашивали его своей тенью — под каждым стеком портала расплывалось
+            // тёмное пятно, и настил читался не полированным, а закопчённым.
+            // На тёмной полировке отражение всегда светлее пола, никогда темнее:
+            // это пришедший от предмета свет, а не убранный.
+            //
+            // Сложение считается разом по всему двойнику, слоем: у тел внутри свои
+            // режимы наложения, и выставленный снаружи режим они бы затёрли.
+            glass.blendMode = .plusLighter
+            glass.opacity = 0.30 + 0.10 * energy
+            // Двойник берёт цвет у стекла. Свет, дважды прошедший сквозь золотую
+            // плиту, выходит уже её тона — без этого сложение давало бледный
+            // серый налёт, и отражение под ногами читалось не золотом, а пылью.
+            glass.addFilter(.colorMultiply(Color(hue: 0.062, saturation: 0.52, brightness: 1)))
+            glass.drawLayer { inner in
+                for piece in echo {
+                    piece.render(&inner)
+                }
+            }
 
-        // Отражение гаснет от предмета к зрителю: у настоящей плиты двойник
-        // виден у самых ног и растворяется на длине шага. Без этого он
-        // обрывается там, где кончается тело, и читается не отражением,
-        // а перевёрнутой копией, приклеенной снизу.
-        let fadeBounds = deckTop.boundingRect
-        context.fill(deckTop,
-                     with: .linearGradient(
-                         Gradient(stops: [
-                             .init(color: .clear, location: 0.0),
-                             .init(color: .clear, location: 0.30),
-                             .init(color: Color(hue: 0.034, saturation: 0.90,
-                                                brightness: 0.055).opacity(0.62),
-                                   location: 0.78),
-                             .init(color: Color(hue: 0.030, saturation: 0.92,
-                                                brightness: 0.040).opacity(0.80),
-                                   location: 1.0),
-                         ]),
-                         startPoint: CGPoint(x: fadeBounds.midX, y: fadeBounds.minY),
-                         endPoint: CGPoint(x: fadeBounds.midX, y: fadeBounds.maxY)))
+            // Общее притемнение ближней трети настила. Длину двойников оно больше
+            // не назначает — этим занята маска выше, — и от него осталась одна
+            // работа: увести передний план в тень, чтобы фигуры на нём читались
+            // силуэтом. Поэтому и ослаблено вдвое против прежнего: 0.44 и 0.58
+            // глухой черноты делали переднюю треть настила самым тёмным местом
+            // кадра, темнее поля за венцом, и глубина читалась наизнанку —
+            // ближний край проваливался, дальний светился.
+            let fadeBounds = deckTop.boundingRect
+            context.fill(deckTop,
+                         with: .linearGradient(
+                             Gradient(stops: [
+                                 .init(color: .clear, location: 0.0),
+                                 .init(color: .clear, location: 0.34),
+                                 .init(color: Color(hue: 0.034, saturation: 0.90,
+                                                    brightness: 0.055).opacity(0.22),
+                                       location: 0.80),
+                                 .init(color: Color(hue: 0.030, saturation: 0.92,
+                                                    brightness: 0.040).opacity(0.30),
+                                       location: 1.0),
+                             ]),
+                             startPoint: CGPoint(x: fadeBounds.midX, y: fadeBounds.minY),
+                             endPoint: CGPoint(x: fadeBounds.midX, y: fadeBounds.maxY)))
+
+            // Тёплый подпор снизу: рампа вдоль передней кромки. На площадке она
+            // всегда есть — хотя бы отражённым от пола зала светом, — и именно она
+            // отделяет ноги стоящих впереди от настила. Без неё вокалист и клинья
+            // кончались в черноте, будто стоят на краю обрыва. Свет идёт снизу
+            // вверх, поэтому и заливка поднимается от кромки вглубь и гаснет
+            // за передней третью — дальше подпору неоткуда взяться.
+            context.blendMode = .plusLighter
+            context.fill(deckTop,
+                         with: .linearGradient(
+                             Gradient(stops: [
+                                 .init(color: .clear, location: 0.52),
+                                 .init(color: Color(hue: 0.068, saturation: 0.86,
+                                                    brightness: 1).opacity(0.030 + 0.030 * energy),
+                                       location: 0.86),
+                                 .init(color: Color(hue: 0.058, saturation: 0.80,
+                                                    brightness: 1).opacity(0.055 + 0.045 * energy),
+                                       location: 1.0),
+                             ]),
+                             startPoint: CGPoint(x: fadeBounds.midX, y: fadeBounds.minY),
+                             endPoint: CGPoint(x: fadeBounds.midX, y: fadeBounds.maxY)))
+            context.blendMode = .normal
+
+            // Поверхность стекла — последним слоем настила: травление лежит НА
+            // плите, а отражение и рампа живут под ней.
+            drawPodiumGlass(&context, project: project, disc: deckTop,
+                            radius: radius, base: base, deck: deck)
+        }
 
         // Общая сортировка: без неё тела накладываются в порядке создания
         // и объём рассыпается. В списке около 320 тел — это и есть цена кадра,
@@ -260,65 +402,141 @@ struct GlassStage {
         // мелочь считается здесь поштучно: бухта кабеля стоит одиннадцать тел,
         // столько же, сколько весь стек портала с динамиками.
         pieces.sort { $0.depth > $1.depth }
+
+        // Дымка между планами. Между барабанами в глубине и вокалистом
+        // впереди — метров восемь воздуха, и на площадке этот воздух видно:
+        // задняя линия всегда стоит в лёгкой пелене, а передняя — нет.
+        // Тела этого сами показать не могут, у материала нет понятия глубины;
+        // единственное место, где глубина ещё известна, — вот этот
+        // отсортированный список. Пелена вставляется в него завесой: всё,
+        // что дальше, оказывается за ней, всё ближнее — перед.
+        //
+        // Завес две, на разных рубежах: одной хватило бы на ступеньку, а нужен
+        // спад. Дальняя стоит за спиной у барабанщика, ближняя — по линии
+        // гитариста и клавишника.
+        let veils: [(depth: Double, strength: Double)] = [
+            (project(0, 0, radius * 0.26).2, 0.042),
+            (project(0, 0, radius * -0.02).2, 0.027),
+        ]
+        var nextVeil = 0
+        let hazeBounds = deckTop.boundingRect
+        // Пелена лежит над настилом, а не на нём: она заполняет воздух до
+        // верхушки фермы. Снизу её граница — передняя кромка настила, иначе
+        // видно, где заканчивается дым.
+        let hazeRect = hazeBounds.insetBy(dx: -hazeBounds.width * 0.06,
+                                          dy: -hazeBounds.height * 0.10)
+            .offsetBy(dx: 0, dy: -maxHeight * 0.30)
+
         for piece in pieces {
+            while nextVeil < veils.count && piece.depth < veils[nextVeil].depth {
+                let haze = veils[nextVeil].strength * (0.62 + 0.38 * energy)
+                context.blendMode = .plusLighter
+                // Плотность падает от дальнего края к ближнему, а не от центра
+                // наружу: дым копится по глубине, и его толща зависит от того,
+                // сколько воздуха между телом и зрителем, а не от того, близко
+                // ли тело к середине картинки. Контур — эллипс: у прямоугольной
+                // завесы видны боковые кромки, и дым читается занавеской.
+                context.fill(
+                    Path(ellipseIn: hazeRect),
+                    with: .linearGradient(
+                        Gradient(stops: [
+                            .init(color: Color(hue: 0.052, saturation: 0.88,
+                                               brightness: 1).opacity(haze), location: 0.0),
+                            .init(color: Color(hue: 0.048, saturation: 0.90,
+                                               brightness: 1).opacity(haze * 0.62), location: 0.42),
+                            .init(color: .clear, location: 0.86),
+                        ]),
+                        startPoint: CGPoint(x: hazeRect.midX, y: hazeRect.minY),
+                        endPoint: CGPoint(x: hazeRect.midX, y: hazeRect.maxY)))
+                context.blendMode = .normal
+                nextVeil += 1
+            }
             piece.render(&context)
         }
     }
 
     // MARK: - Подиум
 
-    /// Помост: шестнадцатигранный настил с толщиной, а не круг, залитый на полу.
-    ///
-    /// Граней ровно шестнадцать, и это не круглое число наугад: столько же полос
-    /// в спектре у прошивки WLED, столько же засечек на кольце частот вокруг.
-    /// Помост оказывается той же разметкой, только в плане — сцена и шкала
-    /// говорят об одном и том же.
+    /// Настил занимает 0.72 радиуса венца, борт набран из 72 граней.
     ///
     /// Гранёный борт — приём ретро: у станка, собранного из щитов, кромка
     /// ломаная, и каждый щит ловит свет по-своему. Гладкий цилиндр читается
     /// точёной деталью, гранёный — построенным.
-    @discardableResult
-    private func drawPodium(_ context: inout GraphicsContext,
-                            project: Solid3D.Projection,
-                            radius: Double,
-                            base: Double,
-                            deck: Double) -> Path
+    static let deckSpan = 0.72
+    /// Высота настила в долях высоты венца.
+    static let deckLift = 0.135
+    private static let facets = 72
+    /// Полграни поворота: без него вершина многоугольника приходится точно
+    /// на середину переднего края, и помост показывает зрителю ребро вместо
+    /// щита. Фасадом вперёд он читается сценой, ребром — кристаллом.
+    private static let facetPhase = Double.pi / Double(GlassStage.facets)
+
+    /// Угол грани борта. Отрицательный синус — половина, повёрнутая к зрителю.
+    private static func facetAngle(_ index: Int) -> Double {
+        Double(index) / Double(facets) * 2 * .pi + facetPhase
+    }
+
+    /// Точка на настиле: доля радиуса, номер грани, высота от пола.
+    private func deckPoint(_ project: Solid3D.Projection, _ radius: Double,
+                           _ ring: Double, _ index: Int, _ level: Double) -> CGPoint
     {
-        let podiumRadius = radius * 0.72
-        let facets = 72
-        // Полграни поворота: без него вершина многоугольника приходится точно
-        // на середину переднего края, и помост показывает зрителю ребро вместо
-        // щита. Фасадом вперёд он читается сценой, ребром — кристаллом.
-        let phase = .pi / Double(facets)
+        let theta = Self.facetAngle(index)
+        let r = radius * Self.deckSpan * ring
+        return project(cos(theta) * r, -level, sin(theta) * r).0
+    }
 
-        /// Вершина многоугольника: номер и высота от пола.
-        func corner(_ index: Int, _ level: Double) -> (CGPoint, Double) {
-            let theta = Double(index) / Double(facets) * 2 * .pi + phase
-            let projected = project(cos(theta) * podiumRadius, -level, sin(theta) * podiumRadius)
-            return (projected.0, projected.2)
-        }
+    /// Замкнутый контур настила на заданной доле радиуса и высоте.
+    private func deckRing(_ project: Solid3D.Projection, _ radius: Double,
+                          _ ring: Double, _ level: Double) -> Path
+    {
+        Self.deckOutline(project, radius: radius, ring: ring, level: level)
+    }
 
-        /// Замкнутый контур настила на заданной высоте.
-        func outline(_ level: Double) -> Path {
-            var path = Path()
-            for index in 0...facets {
-                let point = corner(index % facets, level).0
-                if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
-            }
-            path.closeSubpath()
-            return path
+    /// Тот же контур, но снаружи: венцу нужно знать, где кончается стекло.
+    /// Его шкалы рисуются последними и ложились пунктиром прямо по настилу —
+    /// белая штриховая дуга поперёк полированной плиты читается сором на
+    /// стекле, а не разметкой прибора.
+    static func deckOutline(_ project: (Double, Double, Double) -> (CGPoint, Double, Double),
+                            radius: Double, ring: Double, level: Double) -> Path
+    {
+        var path = Path()
+        for index in 0...facets {
+            let theta = facetAngle(index % facets)
+            let r = radius * deckSpan * ring
+            let point = project(cos(theta) * r, -level, sin(theta) * r).0
+            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
+        path.closeSubpath()
+        return path
+    }
+
+    /// Опора помоста: борт, его подсветка и глухая заливка крышки.
+    ///
+    /// Помост рисуется в два приёма, и это не дробление ради дробления.
+    /// Отражение лежит ПОД поверхностью стекла, а травление — НА ней: сначала
+    /// кладётся вся опора вместе с крышкой, потом в неё смотрится сцена, и
+    /// только сверху идёт узор. Пока узор шёл вместе с крышкой, гасящая
+    /// заливка отражения ложилась поверх него и съедала весь рисунок на
+    /// ближней трети — передний план настила был просто чёрным полем.
+    @discardableResult
+    private func drawPodiumBase(_ context: inout GraphicsContext,
+                                project: @escaping Solid3D.Projection,
+                                radius: Double,
+                                base: Double,
+                                deck: Double) -> Path
+    {
+        let facets = Self.facets
 
         // Подложка борта: весь пояс разом, в самом тёмном тоне. Грани лягут
         // поверх неё, и на их общих краях не останется волосяных просветов —
         // у соседних заливок край один, а сглаживание считает его дважды.
         var apron = Path()
         for index in 0...facets {
-            let point = corner(index % facets, deck).0
+            let point = deckPoint(project, radius, 1, index % facets, deck)
             if index == 0 { apron.move(to: point) } else { apron.addLine(to: point) }
         }
         for index in stride(from: facets, through: 0, by: -1) {
-            apron.addLine(to: corner(index % facets, 0).0)
+            apron.addLine(to: deckPoint(project, radius, 1, index % facets, 0))
         }
         apron.closeSubpath()
 
@@ -360,22 +578,76 @@ struct GlassStage {
                          endPoint: CGPoint(x: apron.boundingRect.midX,
                                            y: apron.boundingRect.maxY)))
 
+        // Торец стекла светится. Плита толщиной в ладонь, поставленная на свет,
+        // всегда горит по кромке ярче, чем по полю: свет входит сверху, идёт
+        // в толще и выходит боком. Два кольца-пояска под самой крышкой и дают
+        // этот выход — верхний ярче, нижний уже почти гаснет. Ближняя половина
+        // борта горячее дальней: её торец повёрнут к зрителю, а дальний виден
+        // вскользь, и оттуда свет уходит мимо камеры.
+        //
+        // Это же и единственный дешёвый способ сказать, что настил стеклянный,
+        // а не крашеный щит: у щита кромка темнее поля, у стекла — светлее.
+        context.blendMode = .plusLighter
+        for band in [(top: 1.0, bottom: 0.58, alpha: 0.075), (top: 0.58, bottom: 0.20, alpha: 0.032)] {
+            var belt = Path()
+            for index in 0...facets {
+                let point = deckPoint(project, radius, 1, index % facets, deck * band.top)
+                if index == 0 { belt.move(to: point) } else { belt.addLine(to: point) }
+            }
+            for index in stride(from: facets, through: 0, by: -1) {
+                belt.addLine(to: deckPoint(project, radius, 1, index % facets, deck * band.bottom))
+            }
+            belt.closeSubpath()
+            let box = belt.boundingRect
+            context.fill(belt,
+                         with: .linearGradient(
+                             Gradient(stops: [
+                                 .init(color: Color(hue: 0.048, saturation: 0.92, brightness: 1)
+                                     .opacity(band.alpha * (0.22 + 0.30 * energy)), location: 0.0),
+                                 .init(color: Color(hue: 0.058, saturation: 0.86, brightness: 1)
+                                     .opacity(band.alpha * (0.60 + 0.70 * energy)), location: 0.62),
+                                 .init(color: Color(hue: 0.070, saturation: 0.74, brightness: 1)
+                                     .opacity(band.alpha * (1.0 + 1.1 * energy)), location: 1.0),
+                             ]),
+                             startPoint: CGPoint(x: box.midX, y: box.minY),
+                             endPoint: CGPoint(x: box.midX, y: box.maxY)))
+        }
+
         // Рёбра между гранями. Семьдесят две тонкие линии по борту — то, чем
         // гранёное тело отличается от точёного: у каждой грани своё ребро,
         // и оно ловит блик. Ближние рёбра ярче дальних: на дальней половине
         // борт от зрителя отвёрнут, и блику там взяться неоткуда.
-        context.blendMode = .plusLighter
+        //
+        // Ребро гаснет к полу, а не идёт ровной палкой во всю высоту борта.
+        // Ровные, они складывались в частокол: семьдесят две одинаковые
+        // вертикали на поясе в три десятка пикселей читались гофрой, будто
+        // помост обшит жестью. Блик на фаске живёт у верхней кромки, где
+        // грань подставлена свету, — там ему и место.
         for index in 0..<facets {
-            let theta = Double(index) / Double(facets) * 2 * .pi + phase
             // Ближняя половина — та, где z отрицательное.
-            let nearness = max(0, -sin(theta))
+            let nearness = max(0, -sin(Self.facetAngle(index)))
             guard nearness > 0.02 else { continue }
+            let top = deckPoint(project, radius, 1, index, deck)
+            // Ребро занимает верхнюю четверть пояса, а не две трети. Написано
+            // «укорочены до 34% высоты» было и раньше, но числа делали обратное:
+            // отсчёт идёт от пола, и 0.34 высоты — это ребро во всю верхнюю
+            // ДВЕ ТРЕТИ борта. На кадре у ближней кромки от этого шла ровная
+            // гребёнка с шагом в двадцать пикселей — помост читался обшитым
+            // гофрированным листом. Блик на фаске живёт у самой верхней кромки,
+            // где грань подставлена свету; ниже борт уходит в тень, и ловить
+            // ребру там нечего.
+            let foot = deckPoint(project, radius, 1, index, deck * 0.74)
             var edge = Path()
-            edge.move(to: corner(index, deck).0)
-            edge.addLine(to: corner(index, 0).0)
+            edge.move(to: top)
+            edge.addLine(to: foot)
             context.stroke(edge,
-                           with: .color(Color(hue: 0.070, saturation: 0.48, brightness: 1)
-                               .opacity((0.030 + 0.055 * energy) * nearness)),
+                           with: .linearGradient(
+                               Gradient(stops: [
+                                   .init(color: Color(hue: 0.072, saturation: 0.44, brightness: 1)
+                                       .opacity((0.040 + 0.052 * energy) * nearness), location: 0.0),
+                                   .init(color: .clear, location: 1.0),
+                               ]),
+                               startPoint: top, endPoint: foot),
                            style: StrokeStyle(lineWidth: max(0.4, base * 0.0006)))
         }
         context.blendMode = .normal
@@ -390,7 +662,7 @@ struct GlassStage {
         // отражает — отражение и узор травления ложатся уже поверх этой
         // заливки. Прозрачная плита обязана показывать то, что под ней,
         // а под сценой ничего и нет.
-        let disc = outline(deck)
+        let disc = deckRing(project, radius, 1, deck)
         let bounds = disc.boundingRect
         context.fill(disc,
                      with: .linearGradient(
@@ -410,42 +682,113 @@ struct GlassStage {
                          startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
                          endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)))
 
+        return disc
+    }
+
+    /// Поверхность стекла: травление, блик, кромка и каустика на полу.
+    ///
+    /// Идёт последним слоем настила — уже поверх отражения и его гашения.
+    private func drawPodiumGlass(_ context: inout GraphicsContext,
+                                 project: @escaping Solid3D.Projection,
+                                 disc: Path,
+                                 radius: Double,
+                                 base: Double,
+                                 deck: Double)
+    {
+        let facets = Self.facets
+        let bounds = disc.boundingRect
+        let podiumRadius = radius * Self.deckSpan
+
         // Узор в толще стекла. Настил стеклянный, а у стекла на сцене всегда
         // есть травление: голая прозрачная плита не читается стеклом вовсе —
         // прозрачное видно только по тому, что на нём отпечатано.
         //
-        // Рисунок повторяет разметку венца: столько же лучей, сколько граней
-        // борта, и кольца на тех же долях радиуса, что кольца уровня в венце.
-        // Узор наугад был бы обоями; этот говорит то же, что и шкала вокруг.
-        var etch = Path()
-        for index in 0..<facets {
-            let theta = Double(index) / Double(facets) * 2 * .pi + phase
-            // Луч идёт не от самого центра: у ступицы все 72 линии сходятся
-            // в точку и дают кляксу.
-            etch.move(to: project(cos(theta) * podiumRadius * 0.30, -deck,
-                                  sin(theta) * podiumRadius * 0.30).0)
-            etch.addLine(to: project(cos(theta) * podiumRadius * 0.985, -deck,
-                                     sin(theta) * podiumRadius * 0.985).0)
+        // У рисунка два слоя, и они говорят разное. Шестнадцать швов — это
+        // шестнадцать полос спектра: столько же секторов в плане, сколько
+        // засечек на кольце частот вокруг. Между ними мелкая насечка, по три
+        // на сектор: она не значит ничего, она фактура — то, по чему видно,
+        // что плита полированная, а не залитая краской.
+        //
+        // Прежде лучей было семьдесят два, все одной силы, и на дальней
+        // половине они сходились в частую гребёнку — узор там читался муаром,
+        // а на ближней исчезал вовсе. Теперь их сорок восемь, у них есть
+        // старший и младший, а дальняя половина взята вполсилы: её и так
+        // сжимает наклон камеры вдвое, и одинаковая с ближней насечка на ней
+        // всегда будет вдвое гуще.
+        let seams = 48
+        var fine = (near: Path(), far: Path())
+        var major = Path()
+        for index in 0..<seams {
+            let theta = Double(index) / Double(seams) * 2 * .pi + .pi / Double(seams)
+            func at(_ ring: Double) -> CGPoint {
+                project(cos(theta) * podiumRadius * ring, -deck,
+                        sin(theta) * podiumRadius * ring).0
+            }
+            if index % 3 == 0 {
+                // Шов идёт почти от ступицы: у панельного настила стыки щитов
+                // сходятся к центру, и обрывать их на полпути нельзя.
+                major.move(to: at(0.13))
+                major.addLine(to: at(0.88))
+            } else {
+                // Насечка живёт только на внешнем поясе. Пущенная от середины,
+                // она вместе с кольцами складывалась в мишень: сорок восемь
+                // спиц и четыре круга поверх группы читались радарным экраном,
+                // и музыканты стояли на разметке, а не на стекле. Середина
+                // настила — то место, где стоят люди, и она должна быть пустой.
+                let start = at(0.55)
+                let end = at(0.88)
+                if sin(theta) < 0 {
+                    fine.near.move(to: start); fine.near.addLine(to: end)
+                } else {
+                    fine.far.move(to: start); fine.far.addLine(to: end)
+                }
+            }
         }
         context.blendMode = .plusLighter
-        context.stroke(etch,
-                       with: .color(Color(hue: 0.072, saturation: 0.50, brightness: 1)
-                           .opacity(0.020 + 0.030 * energy)),
-                       style: StrokeStyle(lineWidth: max(0.3, base * 0.0005)))
+        for (path, weight) in [(fine.near, 1.0), (fine.far, 0.45)] {
+            context.stroke(path,
+                           with: .color(Color(hue: 0.072, saturation: 0.44, brightness: 1)
+                               .opacity((0.020 + 0.020 * energy) * weight)),
+                           style: StrokeStyle(lineWidth: max(0.5, base * 0.0006)))
+        }
+        context.stroke(major,
+                       with: .color(Color(hue: 0.076, saturation: 0.42, brightness: 1)
+                           .opacity(0.030 + 0.032 * energy)),
+                       style: StrokeStyle(lineWidth: max(0.7, base * 0.0009)))
 
-        for ring in [0.30, 0.501, 0.708, 0.985] {
+        // Кольца стоят на тех же долях, что кольца шкалы уровня в венце:
+        // −12, −6 и −3 дБ. Настил оказывается той же шкалой, положенной
+        // плашмя, и это второй слой смысла у рисунка — радиус говорит про
+        // уровень ровно то же, что высота столбика.
+        //
+        // Внешнее кольцо — не мерка, а кайма: она отбивает поле от кромки и
+        // ставит точку лучам. Без неё сорок восемь линий обрывались в воздухе
+        // у самого борта и складывались с рёбрами борта в одну общую гребёнку.
+        // Кайма ровно одна: с двумя ближний край настила показывал зрителю три
+        // концентрические дуги подряд и читался ободом блюда, а не кромкой.
+        //
+        // Толщина линии поднята до пикселя намеренно. Прежние 0.3 пикселя при
+        // прозрачности в сотые доли до растра просто не доходили: набиралось
+        // только на стыках отрезков, и кольцо выходило не линией, а пунктиром
+        // из семидесяти двух точек — тем самым сором на стекле, которого тут
+        // быть не должно.
+        for (ringIndex, ring) in [0.251, 0.501, 0.708, 0.880].enumerated() {
+            let border = ringIndex == 3
             var circle = Path()
             for step in 0...facets {
-                let theta = Double(step % facets) / Double(facets) * 2 * .pi + phase
+                let theta = Self.facetAngle(step % facets)
                 let point = project(cos(theta) * podiumRadius * ring, -deck,
                                     sin(theta) * podiumRadius * ring).0
                 if step == 0 { circle.move(to: point) } else { circle.addLine(to: point) }
             }
             circle.closeSubpath()
             context.stroke(circle,
-                           with: .color(Color(hue: 0.078, saturation: 0.44, brightness: 1)
-                               .opacity(0.030 + 0.045 * energy)),
-                           style: StrokeStyle(lineWidth: max(0.3, base * 0.0006)))
+                           with: .color(Color(hue: border ? 0.070 : 0.080,
+                                              saturation: border ? 0.50 : 0.40, brightness: 1)
+                               .opacity(border ? 0.038 + 0.042 * energy
+                                               : 0.016 + 0.022 * energy)),
+                           style: StrokeStyle(lineWidth: max(border ? 1.0 : 0.8,
+                                                             base * (border ? 0.0011 : 0.0009))))
         }
 
         // Косой блик по стеклу: широкая полоса отражённого света поперёк
@@ -475,12 +818,50 @@ struct GlassStage {
                        style: StrokeStyle(lineWidth: max(0.7, base * 0.0016)))
 
         // Отблеск на полу вокруг помоста: без него настил стоит на пустоте.
-        context.stroke(outline(0),
+        context.stroke(deckRing(project, radius, 1, 0),
                        with: .color(Color(hue: 0.045, saturation: 0.85, brightness: 1)
                            .opacity(0.07 + 0.10 * energy)),
                        style: StrokeStyle(lineWidth: max(0.5, base * 0.0011)))
+
+        // Каустика у ближней кромки. Свет, вошедший в плиту сверху, выходит
+        // торцом и ложится на пол узкой горячей полосой вдоль борта — это то,
+        // чего не бывает у непрозрачного станка и что глаз читает как стекло
+        // без всяких объяснений. Только ближняя дуга: с дальней стороны эта
+        // полоса ушла бы от камеры за помост.
+        //
+        // Размытия нет и быть не может, поэтому свечение набирается тремя
+        // обводками по одной дуге — узкой яркой и двумя широкими слабыми.
+        // Гаснет к краям дуги: в профиль торец виден вскользь, и наружу
+        // оттуда почти ничего не выходит.
+        // Широкие подложки отнесены наружу, а не надеты на ту же дугу: свет
+        // выходит из торца и уходит ОТ помоста, и его ореол должен лежать на
+        // полу перед бортом. Надетый на кромку симметрично, он читался неоновой
+        // лентой, приклеенной по низу станка.
+        for glow in [(ring: 1.055, width: 9.0, alpha: 0.018),
+                     (ring: 1.020, width: 3.2, alpha: 0.045),
+                     (ring: 1.000, width: 1.0, alpha: 0.105)] {
+            var nearArc = Path()
+            for step in (facets / 2)...facets {
+                let point = deckPoint(project, radius, glow.ring, step % facets, 0)
+                if step == facets / 2 { nearArc.move(to: point) } else { nearArc.addLine(to: point) }
+            }
+            let arcBox = nearArc.boundingRect
+            context.stroke(nearArc,
+                           with: .linearGradient(
+                               Gradient(stops: [
+                                   .init(color: .clear, location: 0.0),
+                                   .init(color: Color(hue: 0.062, saturation: 0.80, brightness: 1)
+                                       .opacity(glow.alpha * (0.5 + 0.9 * energy)), location: 0.34),
+                                   .init(color: Color(hue: 0.062, saturation: 0.80, brightness: 1)
+                                       .opacity(glow.alpha * (0.5 + 0.9 * energy)), location: 0.66),
+                                   .init(color: .clear, location: 1.0),
+                               ]),
+                               startPoint: CGPoint(x: arcBox.minX, y: arcBox.midY),
+                               endPoint: CGPoint(x: arcBox.maxX, y: arcBox.midY)),
+                           style: StrokeStyle(lineWidth: max(0.5, base * 0.0011 * glow.width),
+                                              lineCap: .round))
+        }
         context.blendMode = .normal
-        return disc
     }
 
     // MARK: - Общая анатомия
@@ -647,10 +1028,30 @@ struct GlassStage {
             // при 3 в сторону. Голень над ней тоже вертикальна, стык читался
             // коленом, а вся фигура — присевшей: ниже пояса виднелись голень
             // со стопой, а глаз собирал из них бедро с голенью.
-            let heel = seated ? figure.at(side * 0.078 * wide, 0.044, -0.236)
-                              : figure.at(side * 0.040 * wide, 0.034, 0.014 - step)
-            let toe = seated ? figure.at(side * (0.078 * wide + 0.034), 0.026, -0.340)
-                             : figure.at(side * (0.040 * wide + 0.070), 0.023, -0.052 - step)
+            //
+            // Длина стопы считана честно, а не на глаз, и прежняя была втрое
+            // короче нужной. У человека стопа — 0.15 роста, и на этой камере
+            // она лежит на полу почти целиком поперёк взгляда: доля роста в
+            // мире идёт по ширине, а ширина на экране не сжата вовсе, поэтому
+            // развёрнутая на треть прямого угла стопа обязана занимать около
+            // 0.15 экранного роста. Занимала она 0.07 — обрубок в полторы
+            // толщины голени, и глаз честно читал его продолжением голени,
+            // потому что ничем другим такой огрызок и быть не может.
+            //
+            // Пятка отнесена ЗА щиколотку, а не поставлена под неё. Это и
+            // ломает линию: голень приходит в стопу не на её конец, а на
+            // четверть длины от задника, и на экране появляется угол. Стопа,
+            // подвешенная под щиколотку серединой, продолжает голень при любой
+            // длине.
+            let heel = seated ? figure.at(side * 0.078 * wide, 0.046, -0.222)
+                              : figure.at(side * 0.040 * wide, 0.036, 0.030 - step)
+            // Плюсна: перелом стопы там, где у обуви кончается подъём. Носок
+            // от неё тоньше — силуэт сужается к мыску, как у ботинка, а не
+            // идёт одной трубой.
+            let ball = seated ? figure.at(side * (0.078 * wide + 0.048), 0.030, -0.300)
+                              : figure.at(side * (0.040 * wide + 0.062), 0.026, -0.060 - step)
+            let toe = seated ? figure.at(side * (0.078 * wide + 0.072), 0.022, -0.352)
+                             : figure.at(side * (0.040 * wide + 0.092), 0.021, -0.104 - step)
 
             // Тазобедренный сустав ширину расстановки не меняет: ноги
             // разъезжаются от таза, а не переносятся вбок целиком.
@@ -664,23 +1065,50 @@ struct GlassStage {
                 to: ankle,
                 radius: figure.size(0.032),
                 material: material, project: project, lineWidth: line))
+            // Подъём толще голени, мысок тоньше. Прежняя стопа была ТОНЬШЕ
+            // голени и потому читалась её сходящим на нет продолжением:
+            // у человека наоборот — стопа шире щиколотки, и узнаётся она
+            // именно этим расширением книзу.
+            // Подъём и вправду толще голени, а не наравне с ней. Написано так
+            // было и раньше, но числа говорили обратное: подъём 0.030 при
+            // голени 0.032 — то есть стопа У́ЖЕ щиколотки. На кадре от этого
+            // выходило ровно то, против чего правило и заведено: голень,
+            // шарик сустава и такая же по толщине палка под углом — не нога
+            // в ботинке, а вторая голень за вторым коленом, и вся фигура
+            // читалась стоящей на пуантах. Разница нужна заметная: на этой
+            // камере стопа лежит поперёк взгляда и меряется глазом именно
+            // по толщине.
             pieces.append(Solid3D.capsule(
-                from: heel, to: toe,
-                radius: figure.size(0.025),
+                from: heel, to: ball,
+                radius: figure.size(0.040),
+                material: material, project: project, lineWidth: line))
+            pieces.append(Solid3D.capsule(
+                from: ball, to: toe,
+                radius: figure.size(0.026),
                 material: material, project: project, lineWidth: line))
             // Пятка шаром: без неё стопа сзади срезана и голень упирается
             // в пол торцом капсулы.
             pieces.append(Solid3D.sphere(
-                centre: heel, radius: figure.size(0.025),
+                centre: heel, radius: figure.size(0.036),
                 material: material, project: project, lineWidth: line))
             // Пятно под самой подошвой, вдобавок к общему под фигурой. Общее
             // раскинуто на всю расстановку и на тёмном полу читается разве что
             // краем, а сцепление с полом видно только там, где стопа его
             // касается. Сидящей фигуре оно не нужно: у неё ноги на педалях.
+            // Пятно посажено на плюсну, а не на середину стопы: вес стоящего
+            // человека идёт через подушечку, и тень под ней самая плотная.
+            //
+            // И пятно сдвинуто из-под стопы. Пока стопа была обрубком в пять
+            // пикселей, тень под ней вылезала наружу сама; выросшая стопа
+            // накрывает ядро тени целиком, и от контакта на кадре остаётся
+            // один светлый ореол вокруг — пол под ногой светлеет, а не
+            // темнеет, и нога висит в дымке. Тот же снос, что у глухого ящика:
+            // тень уходит из-под тела в сторону от света.
             if !seated {
                 pieces.append(Solid3D.contactShadow(
-                    at: ((heel.0 + toe.0) * 0.5, (heel.2 + toe.2) * 0.5),
-                    radius: figure.size(0.078), strength: 1.45, project: project))
+                    at: (ball.0, ball.2),
+                    radius: figure.size(0.125), strength: 1.25,
+                    project: project, drift: 0.34))
             }
         }
 
@@ -852,8 +1280,12 @@ struct GlassStage {
         // Певец — самая горячая фигура сцены и по накалу, и по плотности.
         // Он стоит впереди всех на самой тёмной части подиума, и никакого
         // предмета за спиной, на котором читался бы его силуэт, у него нет.
-        let glow = 0.48 + 0.52 * energy
-        let density = 0.64
+        // Накал поднят: по замерам кадра вокалист был самым тёмным телом сцены,
+        // 0.17 средней яркости против 0.37 у барабанов и 0.29 у портала.
+        // Старшинство в кадре читается яркостью раньше, чем размером и местом,
+        // и с такими числами первым читался бэклайн, а солист — последним.
+        let glow = 0.60 + 0.40 * energy
+        let density = 0.68
         // Пятно света под ногами. С самим силуэтом на кадре всё в порядке:
         // тело даёт 130-180 против 30 у пола, вчетверо, — не видно другого,
         // на чём он стоит. Передний край подиума освещён слабее всего, пол там
@@ -918,23 +1350,32 @@ struct GlassStage {
         // корпус наискось вниз, и вся верхняя треть прибора лежит на голом
         // тёмном фоне.
         //
-        // Плата за это — сложенная рука. Хват у лица приходит на экран в шести
-        // пикселях от плечевого сустава при костях по пятнадцать, и рука
-        // обязана сложиться вдвое: как локоть ни ставь, между плечевой и
-        // предплечьем остаётся два десятка градусов. Выбран из них лучший
-        // случай — локоть под рёбра и наружу, чтобы излом пришёлся на тёмный
-        // фон, а не на силуэт корпуса.
-        let micHeel = figure.held(0.163, 0.855, -0.080)
-        let micHead = figure.held(0.078, 0.930, -0.035)
+        // Плата за это была — сложенная вдвое рука, и на кадре она не читалась
+        // вовсе. Прежний хват стоял ВНУТРИ локтя (кисть на 0.16 роста вбок при
+        // локте на 0.205), и на экране предплечье уходило обратно туда, откуда
+        // пришла плечевая: две кости ложились друг на друга, от руки оставалась
+        // одна палка от плеча до тупого конца, а микрофон висел у скулы сам по
+        // себе, ничем не удерживаемый.
+        //
+        // Развязывается это одним правилом: хват должен стоять ДАЛЬШЕ локтя
+        // вбок. Тогда по экрану плечо, локоть и кисть идут монотонно вправо —
+        // плечевая вниз-наружу, предплечье вверх-наружу, — и вместо наложения
+        // получается зигзаг, у которого локоть в нижней точке. Микрофон при
+        // этом вынесен от лица ещё дальше кисти и смотрит головкой обратно
+        // к подбородку: наружу его выносит рука, а не он тянет руку за собой.
+        let micHeel = figure.held(0.215, 0.845, -0.100)
+        let micHead = figure.held(0.130, 0.940, -0.055)
         func along(_ fraction: Double) -> (Double, Double, Double) {
             (micHeel.0 + (micHead.0 - micHeel.0) * fraction,
              micHeel.1 + (micHead.1 - micHeel.1) * fraction,
              micHeel.2 + (micHead.2 - micHeel.2) * fraction)
         }
-        // Локоть висит у рёбер и вынесен наружу настолько, чтобы выйти из-за
-        // силуэта корпуса: сустав, спрятанный за телом, не читается вовсе,
-        // и рука тогда выходит одной прямой от плеча к лицу.
-        let micElbow = figure.held(0.205, 0.655, 0.030)
+        // Локоть — нижняя точка всей руки, и он опущен ниже прежнего: чем
+        // глубже провал между плечом и кистью, тем внятнее излом. Наружу он
+        // вынесен ровно настолько, чтобы выйти из-за силуэта талии (та даёт
+        // 0.066 роста вбок, локоть с его толщиной начинается с 0.142) —
+        // и не дальше кисти, иначе предплечье снова пойдёт обратно внутрь.
+        let micElbow = figure.held(0.175, 0.605, 0.030)
         let grip = along(0.22)
         pieces += arm(figure,
                       shoulder: figure.held(0.078, 0.788),
@@ -961,8 +1402,16 @@ struct GlassStage {
         // а зигзагом осколков.
         // Насыщенность вдвое ниже, чем у льда фигуры, но не до нуля: совсем
         // обесцвеченный прибор выпадал из тёплой гаммы сцены серым пятном.
-        let steel = Solid3D.Material(saturation: 0.44, glow: 0.40 + 0.30 * energy,
-                                     opacity: 0.86)
+        // Насыщенность поднята с 0.44, а тело сделано глухим и притемнённым.
+        // Прежний микрофон был единственным холодным предметом всей сцены:
+        // на просвет, с полной кромкой и отражённым бликом по всей своей
+        // ширине в пять пикселей, он выходил серебряной костью в кулаке —
+        // и ярче самого кулака. Настоящий вокальный микрофон тёмный, и на
+        // сцене его видно не блеском, а силуэтом на светлой руке. Тон при
+        // этом остался холоднее льда фигуры: сталь отличается от стекла
+        // тоном, а не яркостью.
+        let steel = Solid3D.Material(saturation: 0.62, glow: 0.30 + 0.26 * energy,
+                                     opacity: 1.12, shade: 0.72)
         pieces.append(Solid3D.capsule(
             from: micHeel, to: along(0.80),
             radius: figure.size(0.014),
@@ -1012,7 +1461,10 @@ struct GlassStage {
         // светились в основном их инструменты, а сами люди уходили в тон пола
         // и читались подставкой под гитару. Разница между музыкантами оставлена,
         // но отсчёт у всех троих ведётся выше.
-        let glow = 0.38 + 0.52 * energy
+        // Гитарист и клавишник подняты вслед за вокалистом, но на ступень ниже
+        // него: они по бокам и во второй линии, и равный с солистом накал
+        // разложил бы группу в ровный ряд из трёх одинаковых огней.
+        let glow = 0.50 + 0.46 * energy
         var pieces = body(figure, glow: glow, density: 0.56, project: project, line: line)
 
         // Гитара задана в собственных осях: `along` — вдоль инструмента от
@@ -1111,8 +1563,15 @@ struct GlassStage {
         // просто широкое светлое пятно; на открытом грифе, где за рукой один
         // тёмный пол, тот же кулак читается кулаком. Заодно предплечью хватает
         // длины: до ближнего лада оно не дотягивало и восьми пикселей.
+        // Локоть опущен и вынесен к зрителю. Прежний стоял на 0.120 вбок и
+        // приходил на экран внутрь габарита верхней деки — сустав пропадал
+        // за ней целиком, а предплечье выходило из-за деки уже под 17
+        // градусов к грифу, то есть шло вдоль него и сливалось с ним в одну
+        // конусную палку. Теперь локоть выходит правее деки на её же радиус,
+        // а предплечье поднимается к грифу под 36 градусами — рука пересекает
+        // инструмент, а не лежит на нём.
         let fretAt = 0.395 + 0.040 * fret
-        let fretElbow = figure.held(0.120, 0.640, -0.105)
+        let fretElbow = figure.held(0.150, 0.612, -0.128)
         pieces += arm(figure,
                       shoulder: figure.held(0.078, 0.788),
                       elbow: fretElbow,
@@ -1125,13 +1584,23 @@ struct GlassStage {
         // накрывают несколько ладов сразу, и на экране косая перекладина
         // расходится с почти горизонтальным грифом заметнее прямой.
         pieces.append(Solid3D.capsule(
-            from: gtr(fretAt - 0.026, -0.014, -0.046),
-            to: gtr(fretAt + 0.028, -0.004, 0.038),
-            radius: figure.size(0.034),
+            from: gtr(fretAt - 0.030, -0.016, -0.052),
+            to: gtr(fretAt + 0.032, -0.004, 0.044),
+            radius: figure.size(0.042),
             // Кисть на грифе плотнее остальной фигуры: на светлом грифе лёд
             // той же плотности растворяется, и от хвата остаётся утолщение
-            // без границы.
-            material: ice(glow: glow, density: 0.70),
+            // без границы. Плотность поднята до глухой, и обхват стал толще:
+            // на кадре гриф — полоса в два пикселя, и хват в четыре читался
+            // не рукой, а неровностью дерева. Пять пикселей глухого тела на
+            // светящейся полосе — это уже силуэт.
+            material: ice(glow: glow * 0.7, density: 0.94),
+            project: project, lineWidth: line))
+        // Большой палец с тыльной стороны грифа. Обхват без него — просто
+        // муфта, надетая на палку: рука узнаётся тем, что масса есть по обе
+        // стороны от того, что она держит, и с разных сторон разная.
+        pieces.append(Solid3D.sphere(
+            centre: gtr(fretAt + 0.012, 0.030, 0.030), radius: figure.size(0.026),
+            material: ice(glow: glow * 0.7, density: 0.94),
             project: project, lineWidth: line))
 
         // Дерево корпуса плотное, в отличие от стеклянных фигур: сквозная дека
@@ -1251,12 +1720,21 @@ struct GlassStage {
                              // держатся, а не упираются, и широко расставленные
                              // ноги вместе с ногами стойки давали на кадре не
                              // человека, а паука.
-                             pose: Pose(lean: 0.090 + 0.022 * sway, twist: 0.10,
+                             // Разворот плеч поднят вдвое с лишним. Клавишник
+                             // единственный стоял к камере ровным фасом: плечи
+                             // на одной высоте, локти разведены зеркально,
+                             // и поза читалась не игрой, а стойкой «смирно»
+                             // над инструментом. Разворот уводит одно плечо к
+                             // зрителю, а вынос к зрителю на этой камере — это
+                             // сдвиг вниз по экрану, и линия плеч наклоняется.
+                             // Кистей он почти не трогает: они стоят у самой
+                             // оси, где плечо разворота ещё нулевое.
+                             pose: Pose(lean: 0.090 + 0.022 * sway, twist: 0.22,
                                         roll: 0.026 * sway, stance: 1.08,
                                         stride: 0.055,
                                         headTilt: -0.038 - 0.014 * beat + 0.012 * sway),
                              project: project)
-        let glow = 0.36 + 0.50 * energy
+        let glow = 0.48 + 0.44 * energy
         var pieces = body(figure, glow: glow, density: 0.56, project: project, line: line)
 
         // Руки разные: левая ушла в нижний край клавиатуры, правая играет
@@ -1273,10 +1751,13 @@ struct GlassStage {
         // вниз-внутрь, и угол между ними появляется только пока локоть стоит
         // вбок дальше кисти. Прижатые к бокам локти его гасили начисто.
         //
-        // Кисть ложится на клавиши к переднему краю ряда, а запястье остаётся
-        // на дальнем. Играют именно там, в передней трети клавиши; заодно кулак
-        // получает под собой тёмный передок корпуса — стеклянной кисти посреди
-        // светлого ряда не видно вовсе, а на кромке она читается.
+        // Кисть ложится на клавиши, но уже не свисает с их переднего края.
+        // Прежние кулаки приходили на 64% глубины ряда, считая от дальней
+        // кромки, то есть половиной массы уходили за передний обрез корпуса —
+        // на кадре это читалось не руками на клавишах, а парой ручек,
+        // привинченных к передней панели. Теперь кулак сидит на 45%: под ним
+        // всё ещё есть тёмный передок, на котором стеклянная кисть читается,
+        // но опирается она на клавиши, а не висит над воздухом.
         //
         // Плотность у рук выше, чем у корпуса: кисть лежит на освещённом ряду
         // клавиш, и сквозная стеклянная рука на нём растворялась — от кулака
@@ -1286,12 +1767,12 @@ struct GlassStage {
         pieces += arm(figure,
                       shoulder: figure.held(-0.078, 0.788),
                       elbow: figure.held(-0.185, 0.612, 0.022),
-                      wrist: figure.held(-0.148 + 0.030 * leftRun, 0.6195 - press, -0.145),
+                      wrist: figure.held(-0.148 + 0.030 * leftRun, 0.6195 - press, -0.1315),
                       glow: glow, density: armDensity, project: project, line: line)
         pieces += arm(figure,
                       shoulder: figure.held(0.078, 0.788),
                       elbow: figure.held(0.182, 0.618, 0.053),
-                      wrist: figure.held(0.125 + 0.034 * rightRun, 0.6210 - press, -0.116),
+                      wrist: figure.held(0.125 + 0.034 * rightRun, 0.6210 - press, -0.1030),
                       glow: glow, density: armDensity, project: project, line: line)
 
         pieces += keyRig(figure, tall: h, project: project, line: line)
@@ -1334,7 +1815,19 @@ struct GlassStage {
         let ivory = Solid3D.Material(saturation: 0.80, glow: 0.22 + 0.26 * air,
                                      opacity: 1.20, shade: 0.82)
         let ebony = Solid3D.Material(saturation: 0.98, glow: 0.02, opacity: 1.45, shade: 0.34)
-        let rack = Solid3D.Material(saturation: 0.72, glow: 0.10 + 0.20 * air, opacity: 0.55)
+        // Железо стойки притемнено множителем яркости, а не тоном: на кадре
+        // трубы шли ровно тем же светом, что и голени человека за ними, и
+        // четыре одинаковые палки читались не ногами при стойке, а мотком
+        // трубок. Стойка обязана быть темнее живого — она не в луче.
+        // Труба стойки — глухое крашеное железо, а не стекло. При 0.55
+        // непрозрачности на теле в полтора пикселя от заливки оставалась треть
+        // силы, и на кадре опоры инструмента попросту растворялись, не доходя
+        // до настила: клавиши висели в воздухе на четырёх тающих ниточках —
+        // ровно то, чего на сцене быть не должно ни у одного тела. Плотность
+        // поднята выше единицы, а притемнение усилено взамен: труба обязана
+        // остаться темнее голеней человека за ней, но она обязана БЫТЬ.
+        let rack = Solid3D.Material(saturation: 0.72, glow: 0.08 + 0.14 * air,
+                                    opacity: 1.20, shade: 0.50)
         var pieces: [Solid3D.Piece] = []
 
         let span = figure.size(1)
@@ -1355,24 +1848,30 @@ struct GlassStage {
                                             strength: 0.44, project: project,
                                             drift: 0.30))
 
-        // Стойка козлами: две трубы сходятся под днищем корпуса и расходятся
-        // вниз и наружу, к полозьям на полу. Перекрещены они у самой вершины,
-        // под самым корпусом, и это не украшение: у честного креста в полную
-        // ширину перекрестье приходится на середину высоты, а середина высоты
-        // стойки на экране — это ровно щиколотки человека за ней. Ноги тонули
-        // в узле, а не читались ногами. Разведённые же понизу трубы проходят
-        // снаружи от стоп, и между ними остаётся чистый коридор под голени.
+        // Стойка не козлами, а двумя опорами по краям инструмента. Козлы
+        // сходились под днищем к середине, и обе трубы обязаны были пересечь
+        // на экране всё, что стоит за ними: сверху вниз через голени, а левая
+        // проходила вплотную к носку — на кадре труба и стопа сливались в
+        // один сустав. Никакой разводкой понизу этого не снять: труба, идущая
+        // от середины наружу, проходит через ноги по определению.
+        //
+        // Опоры по краям расходятся от щёк вниз и чуть наружу и на экране
+        // занимают полосы 0.215…0.292 вбок, тогда как самый вынесенный носок
+        // человека кончается на 0.135. Между ними остаётся чистый коридор,
+        // и ноги впервые читаются на тёмном полу, а не на собственном железе.
+        // Пары поперечных связей у такой стойки нет намеренно: любая из них
+        // ляжет на кадре ровно поперёк голеней.
         for side in [-1.0, 1.0] {
             pieces.append(Solid3D.capsule(
-                from: rig(-side * 0.030, 0.549, -0.208),
-                to: rig(side * 0.265, 0, -0.245),
-                radius: figure.size(0.0095), material: rack,
+                from: rig(side * 0.215, 0.556, -0.212),
+                to: rig(side * 0.292, 0, -0.292),
+                radius: figure.size(0.0105), material: rack,
                 project: project, lineWidth: line))
             // Полоз вдоль взгляда: труба, оборванная точкой, не стоит на полу.
             pieces.append(Solid3D.capsule(
-                from: rig(side * 0.265, 0, -0.190),
-                to: rig(side * 0.265, 0, -0.300),
-                radius: figure.size(0.009), material: rack,
+                from: rig(side * 0.292, 0, -0.232),
+                to: rig(side * 0.292, 0, -0.352),
+                radius: figure.size(0.010), material: rack,
                 project: project, lineWidth: line))
         }
 
@@ -1423,7 +1922,10 @@ struct GlassStage {
     private func drummer(at foot: (Double, Double), height h: Double,
                          project: @escaping Solid3D.Projection, line: Double) -> [Solid3D.Piece]
     {
-        let glow = 0.38 + 0.55 * energy
+        // Барабанщик остаётся самым тёмным из четверых: он сидит в глубине,
+        // за установкой, и по воздуху между ним и зрителем ему положено
+        // терять больше всех.
+        let glow = 0.36 + 0.44 * energy
         // Барабанщик сидит: таз на высоте стула, корпус наклонён к установке.
         // Рост берём больше h: h — это масштаб всего узла разом, а сидящий
         // человек одного роста с остальными должен быть выше своей посадки.
@@ -1459,7 +1961,15 @@ struct GlassStage {
                                         twist: 0.020 + 0.055 * stroke * live, stance: 1.45,
                                         hip: 0.345, headTilt: -0.030 - 0.045 * beat),
                              project: project)
-        var pieces = body(figure, glow: glow, density: 0.56, project: project, line: line)
+        // Барабанщик плотнее остальных троих. Плотность — не про яркость,
+        // а про то, сколько заднего плана проходит сквозь тело; и позади
+        // барабанщика самый занятой фон всей сцены: травление настила с
+        // кольцами и лучами, колонна стула и полдюжины стоек. На 0.56 кольца
+        // травления шли прямо поперёк его груди, а колонна стула — сверху
+        // донизу через таз: силуэт сидящего пропадал, и от фигуры оставалась
+        // штриховка в форме человека. Остальным троим прибавка не нужна —
+        // они стоят либо на чистом полу, либо на фоне глухих кабинетов.
+        var pieces = body(figure, glow: glow, density: 0.88, project: project, line: line)
 
         // Локти висят у рёбер, предплечья идут вперёд и чуть вверх, кисти
         // сходятся над серединой установки. Прежние руки были разведены на
@@ -1477,55 +1987,65 @@ struct GlassStage {
         // корпуса целиком и перестаёт быть рукой — торс просто становится шире.
         // Просвет считается на уровне локтя, где корпус самый узкий (талия
         // 0.066 роста поперёк, локоть вынесен на 0.150).
-        // Локоть отведён НАЗАД, а запястье вынесено вперёд — только на этой
-        // паре у руки появляется излом на экране. Обе кости, направленные к
-        // зрителю, проецируются почти отвесно и собираются в одну прямую
-        // трубу от плеча до кулака: рука есть, а локтя нет. Отведённый назад
-        // локоть уходит по экрану вверх, предплечье падает вниз — и на кадре
-        // между ними набирается около двадцати градусов.
+        // Локоть подобран ЗА рёбра, а запястье вынесено вперёд и наружу —
+        // только на такой паре у руки появляется излом на экране. Прежние
+        // локти стояли на 0.150 вбок при запястье на 0.190: обе кости шли
+        // вниз-наружу под 61 и 71 градусом, то есть по кадру почти одной
+        // прямой, и от руки оставалась труба от плеча до кулака с шариком
+        // посередине. Теперь плечевая падает почти отвесно (70 градусов),
+        // а предплечье уходит наружу полого (40), и между ними на экране
+        // тридцать градусов — рука согнута видимо.
+        //
+        // Заодно ушёл размах: прежние локти торчали вбок вдвое шире плеч и
+        // читались крыльями. Локоть на 0.122 при талии в 0.066 оставляет между
+        // рукой и поясом просвет, но уже не выносит руку за габарит установки.
         for side in [-1.0, 1.0] {
+            // Запястье вынесено вбок ровно настолько, чтобы кулак остался в
+            // прежнем габарите: излом на локте набирается не размахом, а
+            // разницей выноса к зрителю — предплечье поднято и подано вперёд
+            // слабее, чем у первой пробы, и от неё осталось тридцать градусов
+            // при кулаке на 0.220 вместо 0.247. Иначе выправленный локоть
+            // возвращал те самые крылья, ради которых руки и сводили.
+            let elbow = (side * 0.122, 0.455, 0.070)
+            let wrist = (side * 0.195, 0.535 + 0.030 * hand(side), -0.100)
             pieces += arm(figure,
                           shoulder: figure.held(side * 0.078, figure.shoulder),
-                          elbow: figure.held(side * 0.150, 0.455, 0.060),
-                          wrist: figure.held(side * 0.190, 0.505 + 0.030 * hand(side), -0.150),
-                          glow: glow, density: 0.56, project: project, line: line)
-        }
+                          elbow: figure.held(elbow.0, elbow.1, elbow.2),
+                          wrist: figure.held(wrist.0, wrist.1, wrist.2),
+                          glow: glow, density: 0.88, project: project, line: line)
 
-        pieces += drumKit(figure, tall: tall, project: project, line: line)
-
-        // Палочки идут от кулаков вниз-наружу, на пластики. Цели выбраны не по
-        // «правильному» хвату, а по экрану: крышка барабана должна приходить
-        // ниже кулака, иначе палочка ложится на кадре вверх и читается усом.
-        // Таких целей ровно две — малый слева и напольный справа; передние томы
-        // вынесены к зрителю так далеко, что их крышки на кадре оказываются
-        // ниже собственных ободов, но выше кистей, и удар по ним не читается.
-        // Хват у каждой палочки задан своей точкой, а не общей формулой: кулак
-        // сидит на продолжении предплечья (вбок 0.204, уровень 0.522, глубина
-        // −0.221), и торец палочки отложен от него назад по её же оси. Общая
-        // точка хвата на обе стороны давала палочку, торчащую из кисти сбоку:
-        // цели у рук разные, значит и оси палочек расходятся. Правая палочка
-        // длиннее левой и начинается прямо в кулаке: до напольного тома вдвое
-        // дальше, чем до малого, и вынести её торец за кисть уже нечем — на
-        // этом росте палочка и так выходит в четверть человека.
-        //
-        // Замах у каждой палочки свой — тот же попеременный ход, что и у
-        // кистей, — а удар добавляет обеим общий подъём, потому что на сильную
-        // долю бьют разом.
-        let strikes: [(side: Double, grip: (Double, Double, Double),
-                       tip: (Double, Double, Double))] = [
-            (-1.0, (0.182, 0.547, -0.227), (0.345, 0.292, -0.185)),
-            (1.0, (0.204, 0.522, -0.221), (0.428, 0.286, -0.295)),
-        ]
-        for strike in strikes {
-            let raise = 0.014 + 0.115 * hand(strike.side) + 0.028 * beat
-            // Хват поднимается слабее кончика: палочка не переносится вверх
-            // целиком, а поворачивается в кисти, как оно и бывает при замахе.
-            let lift = 0.040 * hand(strike.side)
+            // Палочки идут от кулаков вниз-наружу, на пластики. Цели выбраны
+            // не по «правильному» хвату, а по экрану: крышка барабана должна
+            // приходить ниже кулака, иначе палочка ложится на кадре вверх и
+            // читается усом. Таких целей ровно две — малый слева и напольный
+            // справа; передние томы вынесены к зрителю так далеко, что их
+            // крышки на кадре оказываются ниже собственных ободов, но выше
+            // кистей, и удар по ним не читается.
+            //
+            // Хват больше не задаётся своими числами. Кулак `arm` строит за
+            // запястьем по оси предплечья, и три набора координат — рука,
+            // хват, палочка — при любой правке позы разъезжались: правились
+            // локти, а палочка оставалась висеть там, где кисть была вчера.
+            // Теперь палочка отсчитывается от того же кулака, что и рисуется.
+            let fist = (wrist.0 + (wrist.0 - elbow.0) * 0.34,
+                        wrist.1 + (wrist.1 - elbow.1) * 0.34,
+                        wrist.2 + (wrist.2 - elbow.2) * 0.34)
+            // Замах у каждой палочки свой — тот же попеременный ход, что и у
+            // кистей, — а удар добавляет обеим общий подъём, потому что на
+            // сильную долю бьют разом.
+            let raise = 0.014 + 0.115 * hand(side) + 0.028 * beat
+            let target = side < 0 ? (-0.360, 0.320, -0.372)   // малый
+                                  : (0.428, 0.300, -0.330)    // напольный том
+            let tip = (target.0, target.1 + raise, target.2)
+            // Торец отложен за кулак по оси самой палочки: палочка держится
+            // не за конец, а в трети от него, и этот выступ за кистью —
+            // единственное, чем хват отличается от насаженной на кулак спицы.
+            let butt = (fist.0 - (tip.0 - fist.0) * 0.16,
+                        fist.1 - (tip.1 - fist.1) * 0.16,
+                        fist.2 - (tip.2 - fist.2) * 0.16)
             pieces.append(Solid3D.capsule(
-                from: figure.held(strike.side * strike.grip.0,
-                                  strike.grip.1 + lift, strike.grip.2),
-                to: figure.held(strike.side * strike.tip.0,
-                                strike.tip.1 + raise, strike.tip.2),
+                from: figure.held(butt.0, butt.1, butt.2),
+                to: figure.held(tip.0, tip.1, tip.2),
                 radius: figure.size(0.015),
                 // Палочка остаётся в гамме сцены. Прежние 0.34 насыщенности
                 // при накале до единицы давали на сильной доле два белых
@@ -1537,6 +2057,8 @@ struct GlassStage {
                                            opacity: 0.86, shade: 0.92),
                 project: project, lineWidth: line))
         }
+
+        pieces += drumKit(figure, tall: tall, project: project, line: line)
 
         return pieces
     }
@@ -1565,20 +2087,28 @@ struct GlassStage {
         // и так падает почти вдвое (это заложено в материале), поэтому вялые
         // 0.5 давали на бликах бельё, а не золото: установка выходила серой
         // среди золотых музыкантов и колонок.
-        let shell = Solid3D.Material(saturation: 0.86, glow: 0.32 + 0.50 * bass, opacity: 1.22)
+        // Установка убавлена ещё на треть по накалу и притемнена. Замеры по
+        // кадру говорили прямо: два самых светлых квадрата всей картины —
+        // бочка и напольный том, 0.58 средней яркости против 0.17 у вокалиста.
+        // Барабаны стоят в глубине сцены, за спиной у группы, и по яркости
+        // обязаны быть третьими после людей и портала, а не первыми во всём
+        // кадре. Форма от этого не теряется: она держится на перепаде граней
+        // внутри самой установки, а он от общего притемнения не меняется.
+        let shell = Solid3D.Material(saturation: 0.86, glow: 0.22 + 0.34 * bass,
+                                     opacity: 1.22, shade: 0.80)
         // Передний пластик бочки притемнён вдвое сильнее корпусов. Это самая
         // крупная плоскость установки, и она одна повёрнута к камере целиком:
         // на общем свету она выходила самым светлым пятном всей глубины сцены
         // и перетягивала взгляд с музыкантов на середину установки. Убавлен и
         // накал: у диска и так есть собственный блик от dish.
-        let head = Solid3D.Material(saturation: 0.82, glow: 0.22 + 0.34 * bass,
-                                    opacity: 1.20, shade: 0.76)
+        let head = Solid3D.Material(saturation: 0.82, glow: 0.16 + 0.24 * bass,
+                                    opacity: 1.20, shade: 0.64)
         // Два самых крупных корпуса — бочка и напольный том — притемнены
         // отдельно. Заливка граней у них та же, что у маленьких томов, но
         // площади вчетверо больше, и на общем свету они выходили двумя самыми
         // светлыми телами установки: глаз собирал кадр по ним, а не по человеку.
-        let bulk = Solid3D.Material(saturation: 0.86, glow: 0.28 + 0.44 * bass,
-                                    opacity: 1.22, shade: 0.88)
+        let bulk = Solid3D.Material(saturation: 0.86, glow: 0.19 + 0.30 * bass,
+                                    opacity: 1.22, shade: 0.72)
         // Железо стоек глушится непрозрачностью, а не тоном: у этого материала
         // яркость задаётся освещённостью, и притемнить трубку иначе нечем.
         // А глушить надо: тонких трубок в установке два десятка, и вместе они
@@ -1587,7 +2117,8 @@ struct GlassStage {
         let metal = Solid3D.Material(saturation: 0.72, glow: 0.10 + 0.20 * air, opacity: 0.44)
         // Тарелки — самая жёлтая латунь на сцене: по цвету они и отличаются
         // от пластиков, потому что по форме на этой камере и то и другое круг.
-        let brass = Solid3D.Material(saturation: 0.95, glow: 0.30 + 0.45 * air, opacity: 0.88)
+        let brass = Solid3D.Material(saturation: 0.95, glow: 0.24 + 0.34 * air,
+                                     opacity: 0.88, shade: 0.86)
 
         /// Точка установки: вбок и вглубь — в долях роста, вверх — от пола.
         func kit(_ across: Double, _ level: Double, _ depth: Double) -> (Double, Double, Double) {
@@ -1645,18 +2176,36 @@ struct GlassStage {
 
         // Стул. Барабанщику надо на чём-то сидеть: без стула таз висит в
         // воздухе и посадка читается не посадкой, а зависанием.
-        // Сиденье шире таза, но глухое, как всё железо. Ярким его делать
-        // нельзя: подсвеченный круг под самым животом читается не стулом,
-        // а ещё одним барабаном, поставленным барабанщику на колени. Стул
-        // должен опознаваться краями, выходящими из-под фигуры, и ногами —
-        // а не собственной яркостью.
+        //
+        // Прежнего стула на кадре не было вовсе, и причин тому три, все
+        // измеримые. Сиденье в 0.106 поперечника при тазе в 0.098 не выходило
+        // из-под фигуры ни на пиксель. Верх его стоял на 0.303 при тазе,
+        // начинающемся с 0.316, — то есть под седоком оставался зазор, и даже
+        // покажись стул, человек висел бы над ним. И сделан он был тем же
+        // железом стоек с непрозрачностью 0.44, сквозь которое видно всё
+        // подряд. Теперь сиденье шире таза в полтора раза, приподнято ему
+        // под самый низ и глухое.
+        //
+        // Ярким его делать по-прежнему нельзя: подсвеченный круг под животом
+        // читается не стулом, а ещё одним барабаном на коленях. Опознаётся
+        // стул краями, выходящими из-под фигуры, и ногами — а не яркостью,
+        // поэтому материал у него тёмный и плотный разом.
+        // Насыщенность у стула высокая, как у корпусов: обесцвеченное тело на
+        // этой сцене выходит не тёмным, а серым, и первая проба на 0.70 дала
+        // между бёдрами холодный серый клин — заплату в тёплом кадре, а не
+        // сиденье. Тёмным его делает притемнение, тон при этом остаётся
+        // золотым.
+        let stool = Solid3D.Material(saturation: 0.90, glow: 0.08 + 0.14 * air,
+                                     opacity: 1.20, shade: 0.60)
         pieces.append(Solid3D.cylinder(
-            centre: kit(0, 0.288, 0.008), radius: unit * 0.106, height: tall * 0.030,
-            material: metal, project: project, lineWidth: line))
-        // Колонна стула тоньше прежней: она стоит ровно за фигурой и на просвет
-        // проходит по ней сверху донизу тёмной чертой — стеклянный барабанщик
-        // показывает сквозь себя всё, что за ним.
-        pieces.append(rod((0, 0, 0.014), (0, 0.278, 0.014), 0.013))
+            centre: kit(0, 0.300, 0.012), radius: unit * 0.142, height: tall * 0.032,
+            material: stool, project: project, lineWidth: line))
+        // Колонна стула тоньше сиденья втрое: она стоит ровно за фигурой и на
+        // просвет проходит по ней сверху донизу тёмной чертой — стеклянный
+        // барабанщик показывает сквозь себя всё, что за ним.
+        pieces.append(Solid3D.capsule(
+            from: kit(0, 0, 0.014), to: kit(0, 0.290, 0.014),
+            radius: unit * 0.016, material: stool, project: project, lineWidth: line))
         // Ноги стула разведены шире обычной треноги и развёрнуты одна назад,
         // две вперёд-вбок. Узкая тренога под стулом целиком тонет за бочкой:
         // на экране всё, что ниже её верхней кромки и уже её поперечника,
@@ -1664,10 +2213,16 @@ struct GlassStage {
         // виден, а вместе с ним видно, что барабанщик сидит.
         for index in 0..<3 {
             let angle = Double(index) * 2.094
-            pieces.append(rod((sin(angle) * 0.026, 0.150, 0.014 + cos(angle) * 0.026),
-                              (sin(angle) * 0.172, 0, 0.014 + cos(angle) * 0.172),
-                              0.008))
+            pieces.append(Solid3D.capsule(
+                from: kit(sin(angle) * 0.030, 0.168, 0.014 + cos(angle) * 0.030),
+                to: kit(sin(angle) * 0.196, 0, 0.014 + cos(angle) * 0.196),
+                radius: unit * 0.011, material: stool, project: project, lineWidth: line))
         }
+        // Пятно под стулом: три тонкие ноги, кончающиеся в тон полу, сами
+        // по себе на подиуме не читаются, и без него стул стоял бы не на
+        // сцене, а над ней.
+        pieces.append(Solid3D.contactShadow(at: (x, z + 0.014 * unit), radius: unit * 0.24,
+                                            strength: 0.46, project: project))
 
         // Вся установка отодвинута от барабанщика к зрителю примерно на десятую
         // роста против прежней разметки. Это не про правдоподобие расстановки,
@@ -1724,7 +2279,14 @@ struct GlassStage {
         // центру бочки, но на этой камере центр установки — это и центр
         // барабанщика: отвесная трубка проходила ровно посередине фигуры и
         // разрезала её пополам сверху донизу.
-        pieces.append(rod((0.052, 0.224, -0.610), (0.052, 0.508, -0.610), 0.012))
+        // Стойка кронштейна начинается на крышке бочки, а не внутри неё.
+        // Прежние 0.224 уходили на четверть обечайки вглубь корпуса, а
+        // сортировка тут идёт по глубине камеры, в которой ВЫСОТА весит
+        // больше выноса: поднятая над бочкой трубка оказывается к зрителю
+        // ближе неё и рисуется поверх. На кадре из шкуры бочки торчал светлый
+        // прут длиной в четверть её диаметра — самая заметная ошибка порядка
+        // во всей установке. Верх обечайки на 0.124 + 0.138 = 0.262.
+        pieces.append(rod((0.052, 0.258, -0.610), (0.052, 0.508, -0.610), 0.012))
         pieces.append(rod((0.052, 0.508, -0.610), (-0.104, 0.512, -0.588), 0.010))
         pieces.append(rod((0.052, 0.508, -0.610), (0.108, 0.492, -0.600), 0.010))
         pieces.append(drum(-0.132, 0.500, -0.570, radius: 0.070, depthHeight: 0.112))
@@ -1745,12 +2307,43 @@ struct GlassStage {
             material: bulk, project: project, lineWidth: line))
 
         // Малый на треноге: колонка идёт от пола к корзине под самым корпусом.
-        // Он широкий и плоский — обечайка вчетверо ниже, чем у томов. Это его
-        // единственная примета: по диаметру он второй после напольного, и без
-        // разницы в высоте корпуса на кадре выходил тем же бочонком.
-        pieces += tripod(-0.345, -0.320, hub: 0.115, reach: 0.104)
-        pieces.append(rod((-0.345, 0, -0.320), (-0.345, 0.272, -0.320), 0.013))
-        pieces.append(drum(-0.345, 0.306, -0.320, radius: 0.108, depthHeight: 0.062))
+        // Он широкий и плоский — обечайка вчетверо ниже, чем у томов.
+        //
+        // Он же был главной причиной, по которой установка читалась одной
+        // массой. Малый и левый подвесной том приходили на экран на одной
+        // высоте (−0.051 и −0.046 от уровня пола барабанщика) при зазоре
+        // между их краями в 0.035 роста — два одинаковых по калибру и тону
+        // бочонка впритык, и глаз собирал из них одно тело. Малый выдвинут
+        // к зрителю и опущен: на этой камере вынос вперёд уводит предмет
+        // ВНИЗ по кадру, и между ним и томом открылся просвет в полтора
+        // его собственных обода.
+        //
+        // Разведён он с томами и по тону. Настоящий малый — единственный
+        // барабан установки не из дерева, а из стали, и на площадке он
+        // светлее и холоднее всех: по этому его и узнают. Здесь это и второй
+        // способ отделить его от соседей, кроме места.
+        // Сталь отличается от дерева тоном, а не яркостью. Первая проба стояла
+        // на 0.54 насыщенности при накале 0.30 — и малый вышел белым пятном
+        // ярче всего кадра, включая солиста: разница между барабанами читалась,
+        // но ценой того, что взгляд уходил в угол установки. Насыщенность
+        // приподнята, накал убран, притемнение взято ниже, чем у деревянных
+        // корпусов: малый остался холоднее и светлее их по тону, но темнее
+        // по свету — как и положено предмету в глубине сцены.
+        // Притемнение доведено до дела. Условие было записано верно — «холоднее
+        // и светлее деревянных по тону, но темнее по свету», — а числа его
+        // не выполняли: замер по кадру давал у малого светлую сторону 0.87
+        // яркости против 0.64 у подвесного тома и 0.65 у напольного, то есть
+        // он был светлее их на треть. На кадре это читалось ровно так, как
+        // и было предсказано в прошлый раз: белое ведро в углу установки,
+        // самое светлое тело всей глубины сцены. Тон при этом не тронут —
+        // сталь по-прежнему на 0.70 насыщенности против 0.86 у дерева.
+        let steel = Solid3D.Material(saturation: 0.70, glow: 0.10 + 0.16 * bass,
+                                     opacity: 1.22, shade: 0.56)
+        pieces += tripod(-0.372, -0.400, hub: 0.112, reach: 0.104)
+        pieces.append(rod((-0.372, 0, -0.400), (-0.372, 0.262, -0.400), 0.013))
+        pieces.append(Solid3D.cylinder(
+            centre: kit(-0.372, 0.292, -0.400), radius: unit * 0.108,
+            height: tall * 0.062, material: steel, project: project, lineWidth: line))
 
         // Хай-хэт: две тарелки на одной стойке. Верхняя разводится с нижней
         // между ударами и захлопывается на доле — это единственное движение,
@@ -1803,16 +2396,29 @@ struct GlassStage {
         // Портал притемнён: он бэклайн, а не солист. Глухая заливка граней
         // вывела его верхние плоскости в самое светлое пятно кадра, и два
         // ящика в углах перетягивали взгляд с музыкантов на себя.
-        let cabinet = Solid3D.Material(saturation: 0.92, glow: 0.14 + 0.36 * bass,
-                                       opacity: 1.30, shade: 0.70)
+        // Притемнён ещё раз. Верхняя крышка стека — самая большая ровная
+        // плоскость всей сцены и единственная, повёрнутая к свету всей
+        // площадью: при любом накале она выходит светлее, чем что угодно
+        // на людях, и два таких прямоугольника в верхних углах держат взгляд
+        // крепче любого из музыкантов. Портал должен обозначать границы
+        // площадки, а не быть её самым светлым местом.
+        let cabinet = Solid3D.Material(saturation: 0.92, glow: 0.11 + 0.28 * bass,
+                                       opacity: 1.30, shade: 0.56)
         // Диффузор темнее корпуса: светлый диск читался воздушным шаром,
         // вставленным в ящик, а не воронкой, утопленной в фасад.
-        let cone = Solid3D.Material(saturation: 0.74, glow: 0.30 + 0.50 * bass,
-                                    opacity: 1.15, shade: 0.74)
+        let cone = Solid3D.Material(saturation: 0.74, glow: 0.24 + 0.40 * bass,
+                                    opacity: 1.15, shade: 0.62)
         // Щели порта и рупора: тот же корпусной тон, но темнее и без блеска —
         // светлые полосы читались накладками из белого пластика.
+        // Притемнены ещё раз, и до тона дырки. Щель порта — это отверстие,
+        // а не накладка: у неё внутри воздух, и светлее фасада она не бывает
+        // никогда. На 0.62 обе щели саба выходили светлее собственной передней
+        // стенки и вместе с блеском по контуру читались двумя картинными
+        // рамами, привинченными к ящику, — а рупор верхних кабинетов светлой
+        // полосой во всю ширину. Тёмная щель в светлом фасаде опознаётся
+        // портом с одного взгляда, светлая — не опознаётся вовсе.
         let slot = Solid3D.Material(saturation: 0.80, glow: 0.22 + 0.40 * bass,
-                                    opacity: 1.40, shade: 0.62)
+                                    opacity: 1.40, shade: 0.38)
         var pieces: [Solid3D.Piece] = []
 
         let cosTurn = cos(turn), sinTurn = sin(turn)
@@ -1839,9 +2445,17 @@ struct GlassStage {
 
         // Подкат под сабом: кабинет такого веса на площадке никогда не ставят
         // прямо на настил, под ним рама с колёсами.
+        //
+        // Рама УЖЕ саба, а не шире. Прежние 0.40 на 0.34 выступали из-под
+        // кабинета 0.38 на 0.32 ровно на сантиметр по кругу — и наружу выходила
+        // не рама, а полоска её ВЕРХНЕЙ грани, самой светлой у любого ящика.
+        // На кадре стек стоял на светлом канте в один пиксель, обведённом
+        // снизу тенью: на месте контакта с настилом — самого важного стыка
+        // всей сцены — светилась щель. Утопленная рама даёт обратное и верное:
+        // кабинет нависает над цоколем, стык уходит в тень.
         pieces.append(Solid3D.box(
             centre: local(0, -h * 0.024, 0),
-            size: (h * 0.40, h * 0.048, h * 0.34),
+            size: (h * 0.335, h * 0.048, h * 0.282),
             material: rig, project: project, lineWidth: line, yaw: turn))
 
         // Сабвуфер: единственное тело стека, которое стоит на полу. Он и
@@ -2174,9 +2788,15 @@ struct GlassStage {
         // тёмный параллелепипед у кромки читается дырой в подиуме.
         let trim = Solid3D.Material(saturation: 0.62, glow: 0.18 + 0.26 * bass,
                                     opacity: 1.20, shade: 0.86)
-        // Бутылка — единственное на сцене, что почти не окрашено: вода
-        // прозрачна, и по этой бесцветной вертикали её и видно на тёмной крышке.
-        let water = Solid3D.Material(saturation: 0.26, glow: 0.34 + 0.34 * energy,
+        // Бутылка — самое неокрашенное тело сцены: вода прозрачна, и по этой
+        // почти бесцветной вертикали её и видно на тёмной крышке.
+        // Но «почти» тут важно. При 0.26 насыщенности и 0.34 накала она выходила
+        // единственным белым пятном всего переднего ряда: предмет в шесть
+        // пикселей тянул на себя взгляд сильнее клиньев, кофра и ног вокалиста
+        // вместе взятых, и на общем кадре читался не бутылкой, а сбойной точкой.
+        // Осталась самой бледной вещью на ящике (обкладка идёт по 0.62), но
+        // перестала быть самой яркой вещью в кадре.
+        let water = Solid3D.Material(saturation: 0.44, glow: 0.22 + 0.26 * energy,
                                      opacity: 0.62)
         var pieces: [Solid3D.Piece] = []
 
@@ -2230,9 +2850,15 @@ struct GlassStage {
             from: (bottle.0, bottle.1 - w * 0.085, bottle.2),
             to: (bottle.0, bottle.1 - w * 0.360, bottle.2),
             radius: w * 0.085, material: water, project: project, lineWidth: line))
+        // Крышечка — своим материалом, а не обкладкой ящика. Шарик в четыре
+        // пикселя ловит блик целиком, и на обкладке (накал 0.18, светимость 0.86)
+        // он выходил в 254,235,193 — самой белой точкой всего переднего плана.
+        // Это пробка от бутылки: ей положено быть глухой крашеной пластмассой,
+        // а не полированным алюминием.
+        let cap = Solid3D.Material(saturation: 0.70, glow: 0.08, opacity: 1.20, shade: 0.56)
         pieces.append(Solid3D.sphere(
             centre: (bottle.0, bottle.1 - w * 0.430, bottle.2), radius: w * 0.058,
-            material: trim, project: project, lineWidth: line))
+            material: cap, project: project, lineWidth: line))
 
         return pieces
     }
@@ -2347,13 +2973,32 @@ struct GlassStage {
         // Куда целит каждый прибор, задано отдельно, а не выведено из его места
         // на балке: лампы висят кучно посередине фермы, и если пустить лучи
         // отвесно, четыре пятна лягут одно на другое под самой установкой.
-        // Крайние приборы разведены на фланги, к гитаристу и клавишнику,
-        // средние сведены вперёд — в ту самую пустую переднюю треть, ради
-        // которой всё и затевалось.
-        let aims: [(Double, Double, Double)] = [(-0.56, -0.06, 0.175),
-                                                (-0.16, -0.46, 0.190),
-                                                (0.16, -0.46, 0.190),
-                                                (0.56, -0.06, 0.175)]
+        //
+        // Целятся приборы в людей, а не в пол между ними. Прежние точки
+        // (±0.56 вбок и ±0.16 вперёд) лежали мимо всех четверых: крайние
+        // выносило на четверть радиуса за спину гитаристу и клавишнику,
+        // под самые стеки портала, а средние — на пустую полосу перед
+        // вокалистом. На кадре это читалось буквально: четыре размытых пятна
+        // на голом настиле и ни одного человека в свету. Свет, положенный
+        // не туда, работает против картинки вдвойне — он и людей не выделяет,
+        // и внимание уводит на пустое место.
+        //
+        // Пятно ложится ПОД фигуру (луч уходит в самый низ сортировки), поэтому
+        // попадание в ноги — это не подсветка тела, а светлый круг за ним:
+        // именно на нём тёмный стеклянный силуэт наконец читается первым.
+        // Крайние держат гитариста и клавишника, средние сходятся на вокалисте
+        // с двух сторон — фронтмену положены два прибора, по этому и видно,
+        // кто здесь солист.
+        // Средняя пара сведена почти в одну точку. Разведённая на четверть
+        // радиуса, она давала под вокалистом два отдельных блина разной
+        // яркости — два прибора, светящие мимо друг друга. Сведённые, они
+        // складываются в одно пятно, самое широкое и яркое на настиле:
+        // так на площадке и ставят ключ на солиста, двумя приборами в одну
+        // точку с разных концов балки.
+        let aims: [(Double, Double, Double)] = [(-0.30, -0.10, 0.150),
+                                                (-0.05, -0.36, 0.135),
+                                                (0.05, -0.36, 0.135),
+                                                (0.30, -0.08, 0.150)]
         for (index, slot) in [-0.74, -0.25, 0.25, 0.74].enumerated() {
             // Прибор висит на скобе и потому качается вместе с фермой, но с
             // отставанием: подвес свободный, и груз на нём отзывается позже
@@ -2366,14 +3011,15 @@ struct GlassStage {
             // Разгораются лампы по очереди — каждой свой сдвиг фазы в четверть
             // волны: загоревшись разом, четыре одинаковых пятна читаются не
             // светом, а мигающей гирляндой.
-            // Прибор сидит на своей полосе спектра: крайние на низах, где
-            // работает бочка, средние на верхней середине, где живут голос
-            // и гитара. Полосы взяты не подряд, а вразбег — соседние в спектре
-            // ходят почти одинаково, и четыре лампы снова горели бы разом.
+            // Прибор сидит на полосе того, кого держит: крайние на середине,
+            // где живут гитара и клавиши, средняя пара — на полосах голоса.
+            // Полосы взяты вразбег даже внутри пары на вокалиста: соседние
+            // в спектре ходят почти одинаково, и два прибора над одним
+            // человеком снова горели бы как один.
             //
             // Волна оставлена подмешанной слабой долей: в тишине спектр
             // ровный, и без неё ферма просто гасла бы насмерть.
-            let watching = [1, 6, 9, 13][index]
+            let watching = [5, 2, 8, 11][index]
             let burn = min(1, level(watching) * 1.25
                 * (0.55 + 0.45 * max(0, wave(Double(index) * 1.57, rate: 1.4))))
             // Линза раскалена: у прожектора видно ровно две вещи — тёмный корпус
@@ -2381,9 +3027,24 @@ struct GlassStage {
             // Прежние 0.46 насыщенности вместе с накладным бликом во всю её
             // площадь давали бледное серо-голубое стекло — единственное
             // холодное пятно на всей золотой сцене.
+            // Плотность поднята с 1.06 до 1.24 нарочно, против общего правила
+            // «стекло прозрачно». У этого материала накладные слои (кромка,
+            // отражённый блик) считаются от непрозрачности, и на диске в пять
+            // пикселей кромка занимает его целиком: линза выходила светлым
+            // ободком вокруг тёмной середины — не горящее стекло, а белая губа
+            // на торце трубы, да ещё и вторая после кромки самого корпуса.
+            // У глухого тела накладные слои убавляются вдвое, и весь свет
+            // уходит туда, где ему и место, — в саму заливку линзы.
+            // Гаснет линза притемнением, а не накалом. Яркость этого материала
+            // идёт от освещённости грани и на glow не смотрит вовсе: у диска,
+            // повёрнутого к камере лицом, освещённость всегда полная, и стекло
+            // горело одинаково что на пике, что в тишине — на тихом кадре
+            // четыре белых глаза оставались самыми светлыми пятнами верхней
+            // трети при погасшем венце. Притемнение — единственная ручка,
+            // которой у диска убавляется именно яркость.
             let lens = Solid3D.Material(saturation: 0.62 - 0.24 * burn,
                                         glow: 0.34 + 0.62 * burn + 0.16 * energy,
-                                        opacity: 1.06, shade: 1)
+                                        opacity: 1.24, shade: 0.46 + 0.54 * burn)
             // Корпус прибора — из того же материала, что и вся остальная
             // сцена: то же золотое стекло, только плотнее и глуше. Отдельное
             // тёмное железо выделяло приборы из общей гаммы, и на золотой
@@ -2422,18 +3083,33 @@ struct GlassStage {
 
             // Корпус головы — цилиндр, завалённый носом вниз-вперёд. Он и есть
             // то, что вращается в вилке, поэтому линза сидит на его торце.
-            let nose = (x, headY + stand * 0.026, back - stand * 0.030)
+            // Завал головы переразмечен, и не ради вида, а ради порядка вывода.
+            // Сортировка идёт по глубине камеры, а та наклонена на 0.92 рад:
+            // опускание тела прибавляет к глубине 0.796, вынос к зрителю
+            // убавляет 0.606. У прежнего носа (вниз 0.026, вперёд 0.030) сумма
+            // выходила ПОЛОЖИТЕЛЬНОЙ — линза оказывалась дальше собственного
+            // корпуса и рисовалась под ним. От горящего стекла на кадре
+            // оставался серп по нижнему краю трубы, и прибор читался
+            // водосточным коленом. Прибор теперь завален меньше и вынесен
+            // сильнее: нос выходит к зрителю, линза встаёт впереди корпуса,
+            // и на площадке так и целят ключевой свет — не в пол под собой,
+            // а через сцену на людей.
+            let nose = (x, headY + stand * 0.020, back - stand * 0.052)
             pieces.append(Solid3D.capsule(
                 from: (x, headY - stand * 0.006, back + stand * 0.006),
                 to: nose,
                 radius: stand * 0.019, material: headBody, project: project, lineWidth: line))
-            let eye = (nose.0, nose.1 + stand * 0.008, nose.2 - stand * 0.010)
+            let eye = (nose.0, nose.1 + stand * 0.004, nose.2 - stand * 0.016)
             // Линза чуть у́же торца корпуса: у прибора виден ободок, и именно
             // по нему стекло отделяется от металла. Заподлицо с корпусом она
             // читалась не линзой, а срезом трубы.
+            // Вогнутость убрана почти в ноль: линзу видно с торца, и стекло,
+            // повёрнутое к камере лицом, светится ровно по всей площади.
+            // При 0.30 горячее пятно уезжало к верхнему левому краю диска,
+            // и на пяти пикселях от него оставался серп, а не глаз прибора.
             pieces.append(Solid3D.faceDisc(
-                centre: eye, radius: stand * 0.0155, material: lens, project: project,
-                lineWidth: line, dish: 0.30, squash: 0.72))
+                centre: eye, radius: stand * 0.0168, material: lens, project: project,
+                lineWidth: line, dish: 0.12, squash: 0.72))
 
             // Ореол вокруг линзы: пятно света в дыму у самого прибора. По нему
             // работа лампы видна даже тогда, когда её луч уходит за фигуры, —
@@ -2468,7 +3144,12 @@ struct GlassStage {
             pieces.append(spotBeam(from: eye,
                                    to: (aim.0 * radius, aim.1 * radius),
                                    pool: aim.2 * radius * (0.78 + 0.38 * burn),
-                                   burn: 0.10 + 0.90 * burn,
+                                   // Порог поднят с десятой доли до пятой:
+                                   // прибор, выключающийся между долями
+                                   // насмерть, — это не свет, а стробоскоп.
+                                   // Ключ на площадке горит всегда, музыка
+                                   // добавляет к нему, а не включает его.
+                                   burn: 0.22 + 0.78 * burn,
                                    project: project))
         }
 
@@ -2491,16 +3172,16 @@ struct GlassStage {
     /// выбелил бы её насквозь, потому что кладётся сложением.
     private func spotBeam(from lens: (Double, Double, Double),
                           to target: (Double, Double),
-                          pool: Double, burn: Double,
+                          pool poolWorld: Double, burn: Double,
                           project: Solid3D.Projection) -> Solid3D.Piece
     {
         let head = project(lens.0, lens.1, lens.2)
         let hit = project(target.0, 0, target.1)
-        let poolRadius = max(pool * hit.1, 0.001)
+        let poolRadius = max(poolWorld * hit.1, 0.001)
         // Сплюснутость пятна берётся у проекции, как у контактной тени: круг
         // на полу эта камера показывает почти круглым, и назначенное вручную
         // блюдце сразу выдаёт себя тем, что лежит не в плоскости сцены.
-        let flatten = abs(project(target.0, 0, target.1 + pool).0.y - hit.0.y) / poolRadius
+        let flatten = abs(project(target.0, 0, target.1 + poolWorld).0.y - hit.0.y) / poolRadius
 
         let dx = hit.0.x - head.0.x, dy = hit.0.y - head.0.y
         let run = max(1, (dx * dx + dy * dy).squareRoot())
@@ -2515,10 +3196,30 @@ struct GlassStage {
         cone.addLine(to: CGPoint(x: hit.0.x - uy * poolRadius, y: hit.0.y + ux * poolRadius))
         cone.closeSubpath()
 
-        let disc = Path(ellipseIn: CGRect(x: hit.0.x - poolRadius,
-                                          y: hit.0.y - poolRadius * flatten,
-                                          width: poolRadius * 2,
-                                          height: poolRadius * flatten * 2))
+        // Узкое ядро луча внутри общего конуса. У настоящего луча в дыму нет
+        // одной плотности поперёк: по оси он яркий и почти твёрдый, к кромке
+        // растворяется в воздухе. Одна заливка ровной плотностью давала клин
+        // с чертёжной кромкой — свет, обведённый по линейке.
+        var core = Path()
+        let coreNeck = neck * 0.45, coreEnd = poolRadius * 0.42
+        core.move(to: CGPoint(x: head.0.x - uy * coreNeck, y: head.0.y + ux * coreNeck))
+        core.addLine(to: CGPoint(x: head.0.x + uy * coreNeck, y: head.0.y - ux * coreNeck))
+        core.addLine(to: CGPoint(x: hit.0.x + uy * coreEnd, y: hit.0.y - ux * coreEnd))
+        core.addLine(to: CGPoint(x: hit.0.x - uy * coreEnd, y: hit.0.y + ux * coreEnd))
+        core.closeSubpath()
+
+        func pool(_ scale: Double) -> Path {
+            Path(ellipseIn: CGRect(x: hit.0.x - poolRadius * scale,
+                                   y: hit.0.y - poolRadius * flatten * scale,
+                                   width: poolRadius * scale * 2,
+                                   height: poolRadius * flatten * scale * 2))
+        }
+        let disc = pool(1)
+        // Разлив вокруг пятна: у прибора с мягкой кромкой свет не кончается
+        // по окружности, а сходит на нет ещё столько же вширь. Без разлива
+        // пятно лежит на настиле наклейкой, и настил вокруг него — тем же
+        // чёрным, каким был бы при выключенном приборе.
+        let spill = pool(2.1)
         let hot = Color(hue: 0.095, saturation: 0.42, brightness: 1)
         let warm = Color(hue: 0.080, saturation: 0.60, brightness: 1)
 
@@ -2528,24 +3229,47 @@ struct GlassStage {
         // да соврёт. Из двух ошибок выбрана безопасная: свет, положенный ПОД
         // всё, только подсвечивает фигуры сзади, тогда как положенный поверх
         // выбеливает их насквозь — конус кладётся сложением.
-        return Solid3D.Piece(depth: head.2 + pool * 4) { context in
+        return Solid3D.Piece(depth: head.2 + poolWorld * 4) { context in
             context.blendMode = .plusLighter
+            // Разлив идёт первым и самым слабым: он не рисует свет, а поднимает
+            // настил вокруг пятна из черноты, чтобы пятну было во что перейти.
+            context.fill(
+                spill,
+                with: .radialGradient(
+                    Gradient(stops: [
+                        .init(color: warm.opacity(0.052 * burn), location: 0.30),
+                        .init(color: warm.opacity(0.024 * burn), location: 0.62),
+                        .init(color: .clear, location: 1),
+                    ]),
+                    center: hit.0, startRadius: 0, endRadius: poolRadius * 2.1))
             context.fill(
                 cone,
                 with: .linearGradient(
                     Gradient(stops: [
-                        .init(color: hot.opacity(0.185 * burn), location: 0),
-                        .init(color: warm.opacity(0.082 * burn), location: 0.55),
+                        .init(color: hot.opacity(0.120 * burn), location: 0),
+                        .init(color: warm.opacity(0.055 * burn), location: 0.55),
                         .init(color: .clear, location: 1),
                     ]),
                     startPoint: head.0, endPoint: hit.0))
             context.fill(
+                core,
+                with: .linearGradient(
+                    Gradient(stops: [
+                        .init(color: hot.opacity(0.145 * burn), location: 0),
+                        .init(color: warm.opacity(0.060 * burn), location: 0.62),
+                        .init(color: .clear, location: 1),
+                    ]),
+                    startPoint: head.0, endPoint: hit.0))
+            // Пятно. Ради него весь прибор и висит: на нём тёмный стеклянный
+            // силуэт музыканта наконец получает светлый фон и читается раньше
+            // аппаратуры вокруг.
+            context.fill(
                 disc,
                 with: .radialGradient(
                     Gradient(stops: [
-                        .init(color: hot.opacity(0.330 * burn), location: 0),
-                        .init(color: warm.opacity(0.145 * burn), location: 0.44),
-                        .init(color: .clear, location: 0.82),
+                        .init(color: hot.opacity(0.430 * burn), location: 0),
+                        .init(color: warm.opacity(0.205 * burn), location: 0.46),
+                        .init(color: .clear, location: 0.88),
                     ]),
                     center: hit.0, startRadius: 0, endRadius: poolRadius))
             context.blendMode = .normal
@@ -2584,14 +3308,31 @@ struct GlassStage {
             wedge.addLine(to: CGPoint(x: centre.x - uy * spread * 0.18, y: centre.y + ux * spread * 0.18))
             wedge.closeSubpath()
 
-            let alpha = (lamp.value - 0.42) / 0.58 * 0.16 * (0.4 + 0.6 * energy) * lamp.nearness
+            let alpha = (lamp.value - 0.42) / 0.58 * 0.105 * (0.4 + 0.6 * energy) * lamp.nearness
+            // Луч зажигается не у самой макушки, а в трети пути к сцене.
+            // У макушки он проходил ровно по соседним трубкам: от дальней дуги
+            // все лучи идут на зрителя и ложатся плашмя на собственный ряд.
+            // Полторы сотни полупрозрачных клиньев складывались там в чешую —
+            // дальний край венца читался листом позеленевшей жести, из которой
+            // торчат нити. И это не подгонка под кадр: в воздухе виден не свет,
+            // а пыль в нём, и у самого источника луч ещё не разошёлся — его
+            // и в зале видно с некоторого отхода от прибора.
             context.fill(wedge,
                          with: .linearGradient(
                              Gradient(stops: [
+                                 .init(color: .clear, location: 0.0),
+                                 // Пик отодвинут к двум третям пути. На 0.52 он
+                                 // приходился ровно на дальнюю половину настила,
+                                 // и та выходила светлее ближней — глубина
+                                 // читалась наизнанку. Теперь самое плотное
+                                 // место луча лежит ближе к середине сцены,
+                                 // куда лучи и сходятся.
                                  .init(color: Color(hue: hues.hot, saturation: palette.saturation * 0.45,
-                                                    brightness: 1).opacity(alpha), location: 0.0),
+                                                    brightness: 1).opacity(alpha * 0.26), location: 0.36),
+                                 .init(color: Color(hue: hues.hot, saturation: palette.saturation * 0.50,
+                                                    brightness: 1).opacity(alpha), location: 0.64),
                                  .init(color: Color(hue: hues.hot, saturation: palette.saturation * 0.55,
-                                                    brightness: 1).opacity(alpha * 0.25), location: 0.55),
+                                                    brightness: 1).opacity(alpha * 0.24), location: 0.85),
                                  .init(color: .clear, location: 1.0),
                              ]),
                              startPoint: lamp.point, endPoint: centre))

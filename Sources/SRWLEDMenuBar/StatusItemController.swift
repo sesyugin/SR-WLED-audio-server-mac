@@ -18,6 +18,20 @@ final class StatusItemController: NSObject {
     private var model: AppModel?
     private var refreshTimer: Timer?
 
+    /// Слепок полос, по которому был нарисован значок. Спектр в строке меню
+    /// шириной 34 точки: полоса в нём — два пикселя, и разницу меньше
+    /// двадцатой доли высоты там не видно физически. Значок перерисовывается
+    /// только когда слепок изменился.
+    ///
+    /// Дело не в экономии на самой отрисовке — она копеечная. Каждая
+    /// перерисовка создавала новый NSImage и отдавала его строке меню:
+    /// десять раз в секунду, двадцать тысяч изображений за полчаса работы.
+    /// Система их кэширует, и к концу такого сеанса приложение занимало
+    /// памятью заметно больше, чем в начале.
+    private var drawnBands: [UInt8] = []
+    /// Каким был признак «показывать спектр» на прошлой отрисовке.
+    private var drawnAsSpectrum: Bool?
+
     func install(model: AppModel) {
         self.model = model
 
@@ -58,9 +72,20 @@ final class StatusItemController: NSObject {
     private func redraw() {
         guard let model, let button = statusItem?.button else { return }
 
-        if model.showSpectrumInMenuBar && model.isRunning {
+        let asSpectrum = model.showSpectrumInMenuBar && model.isRunning
+        if asSpectrum {
+            // Квантуем в двадцать ступеней: столько их и различимо на высоте
+            // значка. В тишине и на ровном звуке слепок не меняется вовсе,
+            // и строка меню не трогается ни разу.
+            let quantised = model.bands.map { UInt8(max(0, min(20, ($0 * 20).rounded()))) }
+            guard quantised != drawnBands || drawnAsSpectrum != true else { return }
+            drawnBands = quantised
+            drawnAsSpectrum = true
             button.image = Self.spectrumImage(bands: model.bands)
         } else {
+            guard drawnAsSpectrum != false || button.image == nil else { return }
+            drawnAsSpectrum = false
+            drawnBands = []
             let symbol = NSImage(systemSymbolName: model.state.symbol,
                                  accessibilityDescription: model.state.title)
             symbol?.isTemplate = true

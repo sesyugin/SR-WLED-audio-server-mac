@@ -15,16 +15,32 @@ public struct WireScene: View {
     private let sampler: Sampler
     private let isRunning: Bool
     private let palette: Palette
+    /// Свой тон вместо палитрового. Столбики — единственное, что человек
+    /// правит на глаз прямо во время музыки, и ползунок тона под сценой
+    /// обязан доходить до них, не проходя через набор готовых гамм.
+    /// `nil` — брать тон из палитры.
+    private let tint: Double?
+
+    /// Тона сцены: свой, если задан. Свой тон разводится в вилку той же
+    /// ширины, что и у палитры, — на одном тоне столбики теряют перепад
+    /// между тихой и громкой полосой, на котором держится вся картинка.
+    private var hues: (deep: Double, hot: Double) {
+        guard let tint else { return palette.hues }
+        return (tint - 0.037, tint + 0.038)
+    }
+
 
     @State private var smoother = SpectrumSmoother()
 
     public init(sampler: @escaping Sampler,
                 isRunning: Bool,
-                palette: Palette = .amber)
+                palette: Palette = .amber,
+                tint: Double? = nil)
     {
         self.sampler = sampler
         self.isRunning = isRunning
         self.palette = palette
+        self.tint = tint
     }
 
     /// Параллелей и точек на каждой. Меридианы берутся из тех же точек,
@@ -53,7 +69,7 @@ public struct WireScene: View {
         let centre = CGPoint(x: size.width / 2, y: size.height / 2)
         let base = min(size.width, size.height)
         let energy = smoother.energy
-        let hues = palette.hues
+        let hues = self.hues
 
         // Очень сдержанное свечение позади — только чтобы сфера не висела в пустоте.
         let glowRadius = base * (0.34 + 0.10 * energy)

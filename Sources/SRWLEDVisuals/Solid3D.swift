@@ -18,6 +18,11 @@ struct Solid3D {
     /// Отложенная отрисовка одного тела вместе с его глубиной.
     struct Piece {
         var depth: Double
+        /// Тело это или тень на полу. Тень — не предмет: у неё нет ни объёма,
+        /// ни отражения, и в зеркале настила ей делать нечего. Признак нужен
+        /// именно там: список тел для двойника строится теми же функциями,
+        /// что и сама фигура, и тени приезжают в него вместе со всем остальным.
+        var isShadow: Bool = false
         var render: (inout GraphicsContext) -> Void
     }
 
@@ -124,6 +129,18 @@ struct Solid3D {
     /// согласованную светотень, а это и есть главное условие объёма.
     static let lightScreen = CGVector(dx: -0.42, dy: -0.52)
 
+    /// Ниже какого экранного радиуса тело рисуется одной заливкой.
+    ///
+    /// У стеклянного тела шесть проходов: заливка по нормали, свечение изнутри,
+    /// отражённый блик, кромка на просвет, обводка. На теле в два пикселя все
+    /// шесть ложатся друг на друга и дают ровно то же пятно, что дала бы одна
+    /// заливка, — но стоят вшестеро дороже. А таких тел на сцене больше
+    /// половины: трубки стоек, клавиши, звенья, лапы треног.
+    ///
+    /// Порог низкий намеренно: на полутора пикселях перепад ещё виден глазу,
+    /// на одном — уже нет.
+    static let detailThreshold: Double = 1.25
+
     // MARK: - Сфера
 
     static func sphere(centre: (Double, Double, Double),
@@ -140,6 +157,12 @@ struct Solid3D {
             guard screenRadius > 0.4 else { return }
             let rect = CGRect(x: point.x - screenRadius, y: point.y - screenRadius,
                               width: screenRadius * 2, height: screenRadius * 2)
+
+            if screenRadius < detailThreshold {
+                context.fill(Path(ellipseIn: rect),
+                             with: .color(material.colour(0.72, 0.62 + 0.24 * material.glow)))
+                return
+            }
 
             // Освещённая точка смещена к источнику — это и читается как шар.
             let lit = CGPoint(x: point.x + lightScreen.dx * screenRadius * 0.55,
@@ -198,13 +221,22 @@ struct Solid3D {
                     Gradient(colors: [material.sheen(0.20 + 0.12 * material.glow), .clear]),
                     center: ambientAt, startRadius: 0, endRadius: ambient))
 
-            // Блик: маленький и смещённый к свету.
+            // Блик: маленький и смещённый к свету. Тон у него соломенный, а не
+            // чистый белый. Свет на этой сцене идёт от золотых ламп, и белого
+            // отражать телу попросту неоткуда — но дело даже не в этом: блик
+            // занимает четверть радиуса, а суставы, костяшки и ручки приборов
+            // на кадре по три-четыре пикселя, и чистый белый давал на них
+            // ОДИН пиксель нейтрального серого. На золотом поле такая точка
+            // читается не бликом, а битым пикселем: две штуки на клавишах
+            // и по одной на каждом кулаке были самыми холодными местами кадра.
             let specular = screenRadius * 0.24
             context.fill(
                 Path(ellipseIn: CGRect(x: lit.x - specular, y: lit.y - specular * 0.8,
                                        width: specular * 2, height: specular * 1.6)),
                 with: .radialGradient(
-                    Gradient(colors: [.white.opacity(0.55 + 0.30 * material.glow), .clear]),
+                    Gradient(colors: [Color(hue: material.liteHue, saturation: 0.16,
+                                            brightness: 1)
+                        .opacity(0.55 + 0.30 * material.glow), .clear]),
                     center: lit, startRadius: 0, endRadius: specular * 1.6))
             context.blendMode = .normal
 
@@ -246,6 +278,17 @@ struct Solid3D {
             guard length > 0.001 else { return }
             // Нормаль к оси в экранных координатах — вдоль неё и идёт заливка.
             let nx = -dy / length, ny = dx / length
+
+            if screenRadius < detailThreshold {
+                // Тонкая капсула на экране — это просто линия своей толщины.
+                var thin = Path()
+                thin.move(to: a.0)
+                thin.addLine(to: b.0)
+                context.stroke(thin,
+                               with: .color(material.colour(0.72, 0.62 + 0.24 * material.glow)),
+                               style: StrokeStyle(lineWidth: screenRadius * 2, lineCap: .round))
+                return
+            }
 
             var path = Path()
             path.move(to: CGPoint(x: a.0.x + nx * screenRadius, y: a.0.y + ny * screenRadius))
@@ -358,6 +401,12 @@ struct Solid3D {
                               width: screenRadius * 2,
                               height: screenRadius * 2 * squash)
 
+            if screenRadius < detailThreshold {
+                context.fill(Path(ellipseIn: rect),
+                             with: .color(material.colour(0.68, 0.62 + 0.24 * material.glow)))
+                return
+            }
+
             // Вогнутость: свет собирается не в центре, а смещён к источнику,
             // и к краю уходит в тень — так читается воронка динамика.
             let lit = CGPoint(x: projected.0.x + lightScreen.dx * screenRadius * dish,
@@ -458,6 +507,16 @@ struct Solid3D {
             let screenRadius = radius * top.1
             guard screenRadius > 0.4 else { return }
             let capHeight = screenRadius * max(0.12, min(1, flatten))
+
+            if screenRadius < detailThreshold {
+                var thin = Path()
+                thin.move(to: top.0)
+                thin.addLine(to: bottom.0)
+                context.stroke(thin,
+                               with: .color(material.colour(0.72, 0.62 + 0.24 * material.glow)),
+                               style: StrokeStyle(lineWidth: screenRadius * 2, lineCap: .round))
+                return
+            }
 
             // Боковая поверхность.
             var side = Path()
@@ -617,7 +676,29 @@ struct Solid3D {
         // сквозь который просвечивает второй.
         let dense = min(1, max(0, (material.opacity - 1) / 0.3))
 
+        // Габарит ящика на экране: по нему решается, стоит ли расписывать
+        // его по граням. У мелочи вроде клавиши или щели порта все шесть
+        // граней ложатся в одно пятно.
+        let xs = projected.map(\.0.x), ys = projected.map(\.0.y)
+        let screenSpan = max((xs.max() ?? 0) - (xs.min() ?? 0),
+                             (ys.max() ?? 0) - (ys.min() ?? 0))
+
         return Piece(depth: depth) { context in
+            if screenSpan < detailThreshold * 2.6 {
+                var blob = Path()
+                blob.move(to: projected[0].0)
+                for corner in projected.dropFirst() { blob.addLine(to: corner.0) }
+                blob.closeSubpath()
+                context.fill(blob.boundingRect.width < 0.6 || blob.boundingRect.height < 0.6
+                             ? Path(CGRect(x: blob.boundingRect.midX - screenSpan / 2,
+                                           y: blob.boundingRect.midY - screenSpan / 2,
+                                           width: max(0.8, screenSpan),
+                                           height: max(0.8, screenSpan)))
+                             : Path(blob.boundingRect),
+                             with: .color(material.colour(0.68, 0.66 + 0.24 * material.glow)))
+                return
+            }
+
             // Грани рисуются от дальних к ближним. Отбраковка по знаку площади
             // зависела от порядка вершин и для части граней срабатывала ложно —
             // у выпуклого тела порядок по глубине даёт верный результат сам собой.
@@ -733,7 +814,7 @@ struct Solid3D {
                                    width: r * 2, height: r * flatten * 2))
         }
 
-        return Piece(depth: projected.2 + 0.001) { context in
+        return Piece(depth: projected.2 + 0.001, isShadow: true) { context in
             let pool = screenRadius * 1.7
             context.blendMode = .plusLighter
             context.fill(

@@ -101,7 +101,7 @@ public enum S: String, CaseIterable, Sendable {
 
     // Управление поверх сцены
     case columnColour, animationOn, animationOff, quality, qualityFull, qualityLight
-    case resetColour
+    case resetColour, tabLook, fromPalette, animationOffNote
 }
 
 /// Переводы. Английский — опорный: если ключа нет в другом языке, берётся он.
@@ -185,6 +185,8 @@ public enum L10n {
             .animationOff: "Animation off", .quality: "Quality",
             .qualityFull: "Full", .qualityLight: "Light",
             .resetColour: "Reset",
+            .tabLook: "Look", .fromPalette: "from palette",
+            .animationOffNote: "The scene is not drawn. Packets keep going to the strips.",
         ],
 
         .russian: [
@@ -239,6 +241,8 @@ public enum L10n {
             .animationOff: "Анимация выключена", .quality: "Качество",
             .qualityFull: "Полное", .qualityLight: "Лёгкое",
             .resetColour: "Сбросить",
+            .tabLook: "Вид", .fromPalette: "из палитры",
+            .animationOffNote: "Сцена не рисуется. Пакеты продолжают уходить на ленты.",
         ],
 
         .chinese: [
@@ -292,6 +296,8 @@ public enum L10n {
             .animationOff: "动画已关闭", .quality: "画质",
             .qualityFull: "完整", .qualityLight: "轻量",
             .resetColour: "重置",
+            .tabLook: "外观", .fromPalette: "取自配色",
+            .animationOffNote: "场景不再绘制。数据包仍在发往灯带。",
         ],
 
         .hindi: [
@@ -346,6 +352,8 @@ public enum L10n {
             .animationOff: "एनिमेशन बंद", .quality: "गुणवत्ता",
             .qualityFull: "पूर्ण", .qualityLight: "हल्की",
             .resetColour: "रीसेट",
+            .tabLook: "रूप", .fromPalette: "पैलेट से",
+            .animationOffNote: "दृश्य नहीं बन रहा। पैकेट स्ट्रिप तक जाते रहते हैं।",
         ],
 
         .spanish: [
@@ -400,6 +408,8 @@ public enum L10n {
             .animationOff: "Animación desactivada", .quality: "Calidad",
             .qualityFull: "Completa", .qualityLight: "Ligera",
             .resetColour: "Restablecer",
+            .tabLook: "Aspecto", .fromPalette: "de la paleta",
+            .animationOffNote: "La escena no se dibuja. Los paquetes siguen saliendo a las tiras.",
         ],
 
         .french: [
@@ -454,6 +464,8 @@ public enum L10n {
             .animationOff: "Animation désactivée", .quality: "Qualité",
             .qualityFull: "Complète", .qualityLight: "Légère",
             .resetColour: "Réinitialiser",
+            .tabLook: "Aspect", .fromPalette: "de la palette",
+            .animationOffNote: "La scène n’est plus dessinée. Les paquets continuent vers les rubans.",
         ],
 
         .arabic: [
@@ -508,6 +520,8 @@ public enum L10n {
             .animationOff: "الحركة متوقفة", .quality: "الجودة",
             .qualityFull: "كاملة", .qualityLight: "خفيفة",
             .resetColour: "إعادة تعيين",
+            .tabLook: "المظهر", .fromPalette: "من اللوحة",
+            .animationOffNote: "لا يُرسم المشهد. تستمر الحزم في الذهاب إلى الأشرطة.",
         ],
 
         .bengali: [
@@ -562,6 +576,8 @@ public enum L10n {
             .animationOff: "অ্যানিমেশন বন্ধ", .quality: "মান",
             .qualityFull: "পূর্ণ", .qualityLight: "হালকা",
             .resetColour: "রিসেট",
+            .tabLook: "চেহারা", .fromPalette: "প্যালেট থেকে",
+            .animationOffNote: "দৃশ্য আঁকা হচ্ছে না। প্যাকেট স্ট্রিপে যেতেই থাকে।",
         ],
 
         .portuguese: [
@@ -616,6 +632,8 @@ public enum L10n {
             .animationOff: "Animação desligada", .quality: "Qualidade",
             .qualityFull: "Completa", .qualityLight: "Leve",
             .resetColour: "Redefinir",
+            .tabLook: "Aparência", .fromPalette: "da paleta",
+            .animationOffNote: "A cena não é desenhada. Os pacotes continuam indo às fitas.",
         ],
 
         .urdu: [
@@ -670,6 +688,8 @@ public enum L10n {
             .animationOff: "اینیمیشن آف", .quality: "معیار",
             .qualityFull: "مکمل", .qualityLight: "ہلکا",
             .resetColour: "ری سیٹ",
+            .tabLook: "ظاہری شکل", .fromPalette: "پیلیٹ سے",
+            .animationOffNote: "منظر نہیں بن رہا۔ پیکٹ سٹرپس کو جاتے رہتے ہیں۔",
         ],
 
         .indonesian: [
@@ -724,6 +744,8 @@ public enum L10n {
             .animationOff: "Animasi mati", .quality: "Kualitas",
             .qualityFull: "Penuh", .qualityLight: "Ringan",
             .resetColour: "Atur ulang",
+            .tabLook: "Tampilan", .fromPalette: "dari palet",
+            .animationOffNote: "Adegan tidak digambar. Paket tetap dikirim ke strip.",
         ],
 
         .german: [
@@ -778,6 +800,8 @@ public enum L10n {
             .animationOff: "Animation aus", .quality: "Qualität",
             .qualityFull: "Voll", .qualityLight: "Leicht",
             .resetColour: "Zurücksetzen",
+            .tabLook: "Aussehen", .fromPalette: "aus der Palette",
+            .animationOffNote: "Die Szene wird nicht gezeichnet. Pakete gehen weiter an die Streifen.",
         ],
 
         .ukrainian: [
@@ -832,6 +856,8 @@ public enum L10n {
             .animationOff: "Анімацію вимкнено", .quality: "Якість",
             .qualityFull: "Повна", .qualityLight: "Легка",
             .resetColour: "Скинути",
+            .tabLook: "Вигляд", .fromPalette: "з палітри",
+            .animationOffNote: "Сцена не малюється. Пакети продовжують іти на стрічки.",
         ],
 
         .italian: [
@@ -886,6 +912,8 @@ public enum L10n {
             .animationOff: "Animazione disattivata", .quality: "Qualità",
             .qualityFull: "Completa", .qualityLight: "Leggera",
             .resetColour: "Ripristina",
+            .tabLook: "Aspetto", .fromPalette: "dalla palette",
+            .animationOffNote: "La scena non viene disegnata. I pacchetti continuano ad andare alle strisce.",
         ],
 
         .swedish: [
@@ -940,6 +968,8 @@ public enum L10n {
             .animationOff: "Animation av", .quality: "Kvalitet",
             .qualityFull: "Full", .qualityLight: "Lätt",
             .resetColour: "Återställ",
+            .tabLook: "Utseende", .fromPalette: "från paletten",
+            .animationOffNote: "Scenen ritas inte. Paketen fortsätter till slingorna.",
         ],
 
         .belarusian: [
@@ -994,6 +1024,8 @@ public enum L10n {
             .animationOff: "Анімацыя выключана", .quality: "Якасць",
             .qualityFull: "Поўная", .qualityLight: "Лёгкая",
             .resetColour: "Скінуць",
+            .tabLook: "Выгляд", .fromPalette: "з палітры",
+            .animationOffNote: "Сцэна не малюецца. Пакеты працягваюць ісці на стужкі.",
         ],
     ]
 }

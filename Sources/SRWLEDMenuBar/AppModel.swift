@@ -39,9 +39,6 @@ final class AppModel: ObservableObject {
     /// Один экземпляр на приложение: к нему обращается и интерфейс, и делегат.
     static let shared = AppModel()
 
-    /// Длина истории для водопада: 200 кадров по 0.1 с — двадцать секунд.
-    static let historyLength = 200
-
     // MARK: Наблюдаемое состояние
 
     @Published private(set) var state: ServerState = .stopped
@@ -49,7 +46,6 @@ final class AppModel: ObservableObject {
     /// Пиковые отметки полос — медленно опускаются, показывают недавний максимум.
     @Published private(set) var peaks = [Float](repeating: 0, count: 16)
     /// История полос для водопада. Кольцевой буфер на 20 секунд при обновлении 10 раз в секунду.
-    @Published private(set) var history = [[Float]]()
     @Published private(set) var packetsPerSecond = 0
     @Published private(set) var totalPackets = 0
     @Published private(set) var sourceDescription = ""
@@ -85,6 +81,31 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Свой тон столбиков. Отрицательное значение — «взять из палитры»:
+    /// ползунок должен уметь не только задавать цвет, но и уступать его
+    /// готовой гамме, иначе выбор палитры превращается в кнопку без действия.
+    @Published var columnHue: Double {
+        didSet { defaults.set(columnHue, forKey: Keys.columnHue) }
+    }
+
+    /// Рисовать ли сцену. Выключенная анимация — не косметика: разбор кадра
+    /// стоит дороже всего остального в приложении вместе взятого, и на слабой
+    /// машине это единственный способ отдать процессор музыке, ради которой
+    /// всё и работает. Отправка пакетов при этом не прекращается.
+    @Published var animationEnabled: Bool {
+        didSet { defaults.set(animationEnabled, forKey: Keys.animation) }
+    }
+
+    /// Лёгкое качество: сцена без отражений и с половинной частотой кадров.
+    @Published var lightQuality: Bool {
+        didSet { defaults.set(lightQuality, forKey: Keys.lightQuality) }
+    }
+
+    /// Тон, которым рисовать столбики: свой или из палитры.
+    var columnTint: Double? {
+        columnHue < 0 ? nil : columnHue
+    }
+
     /// Первый запуск показывает объяснение и не лезет за разрешениями сам.
     @Published private(set) var isFirstRun: Bool
 
@@ -98,6 +119,9 @@ final class AppModel: ObservableObject {
         static let language = "language"
         static let palette = "palette"
         static let sceneStyle = "sceneStyle"
+        static let columnHue = "columnHue"
+        static let animation = "animationEnabled"
+        static let lightQuality = "lightQuality"
     }
 
     // MARK: Внутренности
@@ -116,6 +140,10 @@ final class AppModel: ObservableObject {
         }
     }
     @Published private(set) var loginItemProblem: String? = LoginItem.state.explanation
+
+    /// Счётчик тиков обновления интерфейса: по нему диагностика собирается
+    /// реже остального.
+    private var diagnosticsTick = 0
 
     private let defaults = UserDefaults.standard
     private let discovery = DeviceDiscovery()
@@ -148,6 +176,12 @@ final class AppModel: ObservableObject {
 
         palette = Palette(rawValue: defaults.string(forKey: Keys.palette) ?? "") ?? .amber
         sceneStyle = SceneStyle(rawValue: defaults.string(forKey: Keys.sceneStyle) ?? "") ?? .crown
+        // Тон читается через object, а не через double: у невыставленного ключа
+        // double даёт ноль, а ноль — это законный красный тон, и ползунок сам
+        // собой оказывался бы уведён в красное на первом же запуске.
+        columnHue = defaults.object(forKey: Keys.columnHue) as? Double ?? -1
+        animationEnabled = defaults.object(forKey: Keys.animation) as? Bool ?? true
+        lightQuality = defaults.bool(forKey: Keys.lightQuality)
 
         // Язык: сохранённый выбор, иначе язык системы, иначе английский.
         let stored = defaults.string(forKey: Keys.language) ?? ""
@@ -363,7 +397,6 @@ final class AppModel: ObservableObject {
 
         bands = [Float](repeating: 0, count: 16)
         peaks = [Float](repeating: 0, count: 16)
-        history.removeAll()
         packetsPerSecond = 0
         state = .stopped
     }
@@ -424,9 +457,6 @@ final class AppModel: ObservableObject {
             peaks[i] = bands[i] > peaks[i] ? bands[i] : max(bands[i], peaks[i] - 0.02)
         }
 
-        history.append(bands)
-        if history.count > Self.historyLength { history.removeFirst() }
-
         let sent = sender.packetsSent
         packetsPerSecond = max(0, (sent - lastPacketCount) * 10)
         lastPacketCount = sent
@@ -449,7 +479,15 @@ final class AppModel: ObservableObject {
             state = .failed(failure)
         }
 
-        diagnostics = Diagnostics.make(
+        // Диагностика пересобирается два раза в секунду, а не десять, и
+        // присваивается только когда изменилась. Сборка стоит дюжины строк
+        // с переводом и подстановками, а присваивание @Published будит всю
+        // панель настроек целиком — даже если строки те же самые. Читает
+        // человек её глазами, и десять обновлений в секунду ему не нужны.
+        diagnosticsTick += 1
+        guard diagnosticsTick % 5 == 0 else { return }
+
+        let fresh = Diagnostics.make(
             captureRunning: true,
             digitalSilenceSeconds: silenceStartedAt.map { Date().timeIntervalSince($0) } ?? 0,
             deviceName: session.deviceName,
@@ -459,6 +497,7 @@ final class AppModel: ObservableObject {
             networkError: sender.lastError,
             bandsAlive: bands.contains { $0 > 0 },
             language: language)
+        if fresh != diagnostics { diagnostics = fresh }
     }
 }
 

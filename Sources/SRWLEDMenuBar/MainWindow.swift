@@ -4,17 +4,51 @@ import SRWLEDVisuals
 import SRWLEDCore
 
 /// Главное окно: объёмная визуализация во всю площадь и панель управления справа.
+///
+/// Панель разложена по вкладкам, а не сплошным списком. Причина не в красоте:
+/// у настроек четыре разных повода открыться — «куда слать», «как выглядит»,
+/// «почему не работает» и «как ведёт себя приложение», — и приходят к ним
+/// в разное время. Сплошной список заставлял прокручивать мимо трёх чужих
+/// разделов к своему, а самый нужный из них, диагностика, лежал в самом низу.
 struct MainWindow: View {
     @ObservedObject var model: AppModel
+
+    /// Вкладки панели. Порядок — по тому, когда к ним приходят: адреса задают
+    /// один раз при настройке, вид крутят постоянно, диагностику открывают
+    /// в беде, поведение приложения — почти никогда.
+    private enum Tab: String, CaseIterable, Identifiable {
+        case send, look, health, app
+        var id: String { rawValue }
+
+        var key: S {
+            switch self {
+            case .send: return .whereToSend
+            case .look: return .tabLook
+            case .health: return .diagnostics
+            case .app: return .settings
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .send: return "antenna.radiowaves.left.and.right"
+            case .look: return "paintbrush"
+            case .health: return "stethoscope"
+            case .app: return "gearshape"
+            }
+        }
+    }
+
+    @State private var tab: Tab = .send
 
     var body: some View {
         HSplitView {
             stage
                 .frame(minWidth: 460)
             sidebar
-                .frame(minWidth: 300, idealWidth: 320, maxWidth: 380)
+                .frame(minWidth: 300, idealWidth: 330, maxWidth: 400)
         }
-        .frame(minWidth: 820, minHeight: 540)
+        .frame(minWidth: 860, minHeight: 560)
         .environment(\.layoutDirection, model.language.isRightToLeft ? .rightToLeft : .leftToRight)
     }
 
@@ -22,35 +56,69 @@ struct MainWindow: View {
 
     private var stage: some View {
         ZStack {
-            Group {
-                switch model.sceneStyle {
-                case .crown:
-                    CrownScene(sampler: { model.sampleBands() },
-                               isRunning: model.isRunning,
-                               palette: model.palette)
-                case .neon:
-                    NeonScene(sampler: { model.sampleBands() },
-                              isRunning: model.isRunning,
-                              palette: model.palette,
-                              showsWordmark: false)
-                case .ring:
-                    RingScene(sampler: { model.sampleBands() },
-                              isRunning: model.isRunning,
-                              palette: model.palette)
-                case .sphere:
-                    WireScene(sampler: { model.sampleBands() },
-                              isRunning: model.isRunning,
-                              palette: model.palette)
-                }
+            if model.animationEnabled {
+                scene.ignoresSafeArea()
+            } else {
+                stageOff
             }
-                .ignoresSafeArea()
 
             VStack {
                 stageHeader
                 Spacer()
                 if !model.isRunning { stagePrompt }
+                stageBar
             }
             .padding(22)
+        }
+    }
+
+    @ViewBuilder
+    private var scene: some View {
+        switch model.sceneStyle {
+        case .crown:
+            CrownScene(sampler: { model.sampleBands() },
+                       isRunning: model.isRunning,
+                       palette: model.palette,
+                       tint: model.columnTint,
+                       light: model.lightQuality)
+        case .neon:
+            NeonScene(sampler: { model.sampleBands() },
+                      isRunning: model.isRunning,
+                      palette: model.palette,
+                      tint: model.columnTint,
+                      showsWordmark: false)
+        case .ring:
+            RingScene(sampler: { model.sampleBands() },
+                      isRunning: model.isRunning,
+                      palette: model.palette,
+                      tint: model.columnTint)
+        case .sphere:
+            WireScene(sampler: { model.sampleBands() },
+                      isRunning: model.isRunning,
+                      palette: model.palette,
+                      tint: model.columnTint)
+        }
+    }
+
+    /// Что видно, когда анимация выключена. Не чёрный прямоугольник: человек
+    /// выключил картинку, а не звук, и ему всё ещё нужно видеть, что сигнал
+    /// идёт. Полоска спектра стоит шестнадцати заливок на кадр против трёх
+    /// сотен тел у сцены — в этом и вся разница в цене.
+    private var stageOff: some View {
+        ZStack {
+            Color(red: 0.035, green: 0.030, blue: 0.028).ignoresSafeArea()
+            VStack(spacing: 14) {
+                SpectrumStrip(bands: model.bands)
+                    .frame(height: 54)
+                    .foregroundStyle(Color(hue: model.columnTint ?? model.palette.hues.hot,
+                                           saturation: 0.7, brightness: 1).opacity(0.75))
+                Text(model.localized(.animationOffNote))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: 420)
+            .padding(.horizontal, 40)
         }
     }
 
@@ -93,6 +161,52 @@ struct MainWindow: View {
         .shadow(color: .black.opacity(0.55), radius: 10)
     }
 
+    /// Полоса под сценой: тон столбиков и выключатель картинки.
+    ///
+    /// Оба органа живут здесь, а не в панели справа, потому что оба правят то,
+    /// что человек прямо сейчас видит: цвет подбирают, глядя на столбики,
+    /// а не на список настроек, и выключают анимацию тоже глядя на неё.
+    private var stageBar: some View {
+        HStack(spacing: 14) {
+            Button {
+                model.animationEnabled.toggle()
+            } label: {
+                Image(systemName: model.animationEnabled ? "waveform" : "waveform.slash")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 30, height: 26)
+                    .background(.white.opacity(model.animationEnabled ? 0.14 : 0.26),
+                                in: RoundedRectangle(cornerRadius: 7))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .help(model.localized(model.animationEnabled ? .animationOff : .animationOn))
+
+            HueSlider(hue: Binding(get: { model.columnTint },
+                                   set: { model.columnHue = $0 ?? -1 }),
+                      fallback: model.palette.hues.hot)
+                .frame(maxWidth: 260)
+
+            // Кнопка возврата к палитре появляется только когда есть что
+            // возвращать: постоянная — это лишний орган рядом с ползунком,
+            // который девяносто девять раз из ста ничего не делает.
+            if model.columnTint != nil {
+                Button(model.localized(.resetColour)) { model.columnHue = -1 }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.white.opacity(0.12), in: Capsule())
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.10), lineWidth: 0.5))
+    }
+
     private var stagePrompt: some View {
         Button {
             model.start()
@@ -107,55 +221,107 @@ struct MainWindow: View {
         }
         .buttonStyle(.plain)
         .shadow(color: .black.opacity(0.4), radius: 14, y: 4)
+        .padding(.bottom, 10)
     }
 
     // MARK: Панель
 
     private var sidebar: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                controls
+        VStack(spacing: 0) {
+            header
+            Divider()
+            tabs
+            Divider()
 
-                if model.isFirstRun { welcomeBlock }
-                if case .noSignal = model.state { permissionBlock }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    if model.isFirstRun { welcomeBlock }
 
-                devicesSection
-                destinationSection
-                diagnosticsSection
-                behaviourSection
-
-                if let reason = model.lastRestartReason {
-                    Label("\(model.localized(.captureRestarted)): \(reason)",
-                          systemImage: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    switch tab {
+                    case .send:
+                        destinationSection
+                        devicesSection
+                    case .look:
+                        appearanceSection
+                    case .health:
+                        if case .noSignal = model.state { permissionBlock }
+                        diagnosticsSection
+                        if let reason = model.lastRestartReason {
+                            Label("\(model.localized(.captureRestarted)): \(reason)",
+                                  systemImage: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    case .app:
+                        behaviourSection
+                        processingSection
+                    }
                 }
+                .padding(18)
             }
-            .padding(18)
         }
     }
 
-    private var controls: some View {
-        HStack {
-            Button(model.localized(model.isRunning ? .stop : .start)) {
+    /// Шапка панели: пуск и общий вердикт. Стоит выше вкладок и не уезжает
+    /// с прокруткой — на эту кнопку жмут из любого раздела.
+    ///
+    /// Точка вердикта здесь же не для красоты: она видна со всех вкладок и
+    /// краснеет раньше, чем человек догадается открыть диагностику.
+    private var header: some View {
+        HStack(spacing: 10) {
+            Button {
                 model.isRunning ? model.stop() : model.start()
+            } label: {
+                Label(model.localized(model.isRunning ? .stop : .start),
+                      systemImage: model.isRunning ? "stop.fill" : "play.fill")
+                    .frame(maxWidth: .infinity)
             }
             .controlSize(.large)
             .keyboardShortcut(.return)
 
-            Spacer()
-
-            Picker("", selection: $model.language) {
-                ForEach(Language.allCases) { language in
-                    Text(language.nativeName).tag(language)
-                }
+            Button {
+                tab = .health
+            } label: {
+                Circle()
+                    .fill(overallColour)
+                    .frame(width: 9, height: 9)
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 128)
+            .buttonStyle(.plain)
+            .help(model.localized(.diagnostics))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private var overallColour: Color {
+        colour(for: model.diagnostics.overall)
+    }
+
+    private var tabs: some View {
+        HStack(spacing: 0) {
+            ForEach(Tab.allCases) { item in
+                Button {
+                    tab = item
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: item.symbol).font(.system(size: 13))
+                        Text(model.localized(item.key))
+                            .font(.system(size: 9))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                    .background(tab == item ? Color.accentColor.opacity(0.16) : Color.clear)
+                    .foregroundStyle(tab == item ? Color.accentColor : Color.secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
+
+    // MARK: Разделы
 
     private var devicesSection: some View {
         section(model.localized(.devices)) {
@@ -183,12 +349,10 @@ struct MainWindow: View {
                     .font(.system(size: 11))
             }
 
-            HStack {
-                Button(model.localized(model.isSearching ? .refresh : .searchDevices)) {
-                    model.isSearching ? model.refreshDeviceStatuses() : model.startDiscovery()
-                }
-                .font(.system(size: 11))
+            Button(model.localized(model.isSearching ? .refresh : .searchDevices)) {
+                model.isSearching ? model.refreshDeviceStatuses() : model.startDiscovery()
             }
+            .font(.system(size: 11))
         }
     }
 
@@ -243,6 +407,60 @@ struct MainWindow: View {
         }
     }
 
+    private var appearanceSection: some View {
+        section(model.localized(.tabLook)) {
+            Picker("", selection: $model.sceneStyle) {
+                ForEach(SceneStyle.allCases) { style in
+                    Text(style.title).tag(style)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+
+            Picker("", selection: $model.palette) {
+                ForEach(Palette.allCases) { palette in
+                    Text(palette.title).tag(palette)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(model.localized(.columnColour))
+                        .font(.system(size: 11))
+                    Spacer()
+                    Text(model.columnTint == nil
+                         ? model.localized(.fromPalette)
+                         : "\(Int((model.columnTint ?? 0) * 360))°")
+                        .font(.system(size: 10))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                HueSlider(hue: Binding(get: { model.columnTint },
+                                       set: { model.columnHue = $0 ?? -1 }),
+                          fallback: model.palette.hues.hot)
+            }
+
+            Toggle(model.localized(.animationOn), isOn: $model.animationEnabled)
+                .font(.system(size: 11))
+
+            // Качество прячется, когда сцены нет: настройка того, чего сейчас
+            // не рисуют, — это орган, у которого нельзя увидеть результат.
+            if model.animationEnabled {
+                Picker(model.localized(.quality), selection: $model.lightQuality) {
+                    Text(model.localized(.qualityFull)).tag(false)
+                    Text(model.localized(.qualityLight)).tag(true)
+                }
+                .pickerStyle(.segmented)
+                .font(.system(size: 11))
+            }
+
+            Toggle(model.localized(.spectrumInMenuBar), isOn: $model.showSpectrumInMenuBar)
+                .font(.system(size: 11))
+        }
+    }
+
     private var diagnosticsSection: some View {
         section(model.localized(.diagnostics)) {
             if model.diagnostics.lines.isEmpty {
@@ -274,7 +492,8 @@ struct MainWindow: View {
                 }
                 Button(model.localized(.copy)) {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(model.diagnostics.asText(language: model.language), forType: .string)
+                    NSPasteboard.general.setString(model.diagnostics.asText(language: model.language),
+                                                   forType: .string)
                 }
                 .font(.system(size: 11))
             }
@@ -291,24 +510,25 @@ struct MainWindow: View {
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Picker("", selection: $model.sceneStyle) {
-                ForEach(SceneStyle.allCases) { style in
-                    Text(style.title).tag(style)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
 
-            Picker("", selection: $model.palette) {
-                ForEach(Palette.allCases) { palette in
-                    Text(palette.title).tag(palette)
+            HStack {
+                Text(model.localized(.language))
+                    .font(.system(size: 11))
+                Spacer()
+                Picker("", selection: $model.language) {
+                    ForEach(Language.allCases) { language in
+                        Text(language.nativeName).tag(language)
+                    }
                 }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 150)
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
+        }
+    }
 
-            Toggle(model.localized(.spectrumInMenuBar), isOn: $model.showSpectrumInMenuBar)
-                .font(.system(size: 11))
+    private var processingSection: some View {
+        section(model.localized(.processing)) {
             Toggle(model.localized(.originalBehaviour), isOn: $model.useOriginalBehaviour)
                 .font(.system(size: 11))
             Text(model.localized(.originalBehaviourNote))

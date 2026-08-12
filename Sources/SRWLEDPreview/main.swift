@@ -7,7 +7,12 @@ import SRWLEDVisuals
 
 @MainActor
 func render(name: String, bands: [Float], peaks: [Float], palette: Palette, size: CGSize) {
-    let view = CrownScene(sampler: { bands }, isRunning: true, palette: palette)
+    // Время назначено, а не взято с часов: венец вращается, и без этого
+    // каждый прогон превью показывал сцену под новым углом — сравнить кадр
+    // до правки с кадром после было невозможно. Значение произвольное,
+    // важно лишь то, что оно одно и то же от прогона к прогону.
+    let view = CrownScene(sampler: { bands }, isRunning: true, palette: palette,
+                          frozenTime: 41.7)
         .frame(width: size.width, height: size.height)
 
     let renderer = ImageRenderer(content: view)
@@ -72,7 +77,40 @@ let loud: [Float] = [1.0, 0.95, 0.80, 0.62, 0.70, 0.55, 0.50, 0.58,
 
 let size = CGSize(width: 900, height: 506)
 
+/// Замер цены кадра. Оптимизацию иначе не проверить: время всего прогона
+/// превью на три четверти состоит из запуска процесса и упаковки PNG,
+/// и правка, ускоряющая отрисовку вдвое, в нём не видна вовсе.
+///
+/// Размер взят не превьюшный, а рабочий: у окна приложения он вдвое меньше,
+/// и половина тел сцены уходит за порог мелкой отрисовки — цена кадра там
+/// совсем другая, чем на большом кадре для просмотра.
+@MainActor
+func benchmark(frames: Int) {
+    let size = CGSize(width: 1180, height: 700)
+    var total: Double = 0
+    for index in 0..<frames {
+        // Время сдвигается от кадра к кадру: на замороженном венец стоит,
+        // и часть работы отпадает по совпадению значений.
+        let view = CrownScene(sampler: { music }, isRunning: true, palette: .amber,
+                              frozenTime: 40 + Double(index) * 0.017,
+                              light: ProcessInfo.processInfo.environment["SRWLED_LIGHT"] != nil)
+            .frame(width: size.width, height: size.height)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        let started = ProcessInfo.processInfo.systemUptime
+        _ = renderer.nsImage
+        total += ProcessInfo.processInfo.systemUptime - started
+    }
+    let perFrame = total / Double(frames) * 1000
+    print(String(format: "кадр: %.1f мс, это %.0f к/с при полной загрузке одного ядра",
+                 perFrame, 1000 / perFrame))
+}
+
 MainActor.assumeIsolated {
+    if ProcessInfo.processInfo.environment["SRWLED_BENCH"] != nil {
+        benchmark(frames: 24)
+        exit(0)
+    }
     render(name: "quiet", bands: quiet, peaks: quiet, palette: .amber, size: size)
     render(name: "music", bands: music, peaks: music.map { min(1, $0 + 0.1) },
            palette: .amber, size: size)
