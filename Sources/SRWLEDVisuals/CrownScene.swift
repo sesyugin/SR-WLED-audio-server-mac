@@ -115,34 +115,10 @@ public struct CrownScene: View {
         }
         context.blendMode = .normal
 
-        // Планы 3 и 4: топографические контуры на двух разных глубинах.
-        // Дальний набор тоньше, бледнее и плывёт медленнее ближнего.
-        let sets: [(origin: CGPoint, count: Int, scale: Double, alpha: Double,
-                    width: Double, speed: Double)] = [
-            (CGPoint(x: size.width * 0.16, y: size.height * 0.34), 8, 0.085, 0.030, 0.0011, 0.05),
-            (CGPoint(x: size.width * 0.84, y: size.height * 0.66), 6, 0.105, 0.045, 0.0017, 0.09),
-        ]
-
-        for set in sets {
-            for ring in 0..<set.count {
-                let radius = base * (set.scale + Double(ring) * set.scale * 1.15)
-                var path = Path()
-                for step in 0...84 {
-                    let theta = Double(step) / 84 * 2 * .pi
-                    let wobble = 1
-                        + 0.17 * sin(theta * 2 + time * set.speed + Double(ring) * 0.8)
-                        + 0.10 * sin(theta * 3 - time * set.speed * 0.7 + Double(ring) * 1.5)
-                    let r = radius * wobble
-                    let point = CGPoint(x: set.origin.x + cos(theta) * r,
-                                        y: set.origin.y + sin(theta) * r * 0.84)
-                    if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
-                }
-                let fade = 1 - Double(ring) / Double(set.count)
-                context.stroke(path,
-                               with: .color(.white.opacity(set.alpha * (0.45 + 0.55 * fade))),
-                               style: StrokeStyle(lineWidth: base * set.width))
-            }
-        }
+        // План 3: полярная измерительная сетка на плоскости — она отвечает
+        // столбикам по смыслу. Топографические разводы, стоявшие здесь раньше,
+        // были просто узором и со шкалой прибора не связаны никак.
+        drawPolarGrid(&context, size: size, time: time)
 
         // План 5: линия горизонта — она отделяет «даль» от «пола» и без неё
         // все предыдущие планы сливаются.
@@ -159,6 +135,60 @@ public struct CrownScene: View {
                            startPoint: CGPoint(x: 0, y: horizon),
                            endPoint: CGPoint(x: size.width, y: horizon)),
                        style: StrokeStyle(lineWidth: base * 0.0013))
+    }
+
+    /// Полярная сетка на плоскости: концентрические круги и лучи по границам полос.
+    /// Уходит за пределы венца, поэтому у сцены появляется пол, а не пустота.
+    private func drawPolarGrid(_ context: inout GraphicsContext, size: CGSize, time: TimeInterval) {
+        let centre = CGPoint(x: size.width / 2, y: size.height / 2)
+        let base = min(size.width, size.height)
+        let hues = palette.hues
+
+        let spin = time * 0.10
+        let tilt = 0.92
+        let focal = base * 2.0
+        let distance = base * 2.1
+        let cosSpin = cos(spin), sinSpin = sin(spin)
+        let cosTilt = cos(tilt), sinTilt = sin(tilt)
+
+        func project(_ x: Double, _ y: Double, _ z: Double) -> CGPoint {
+            let rx = x * cosSpin + z * sinSpin
+            let rz = -x * sinSpin + z * cosSpin
+            let ty = y * cosTilt - rz * sinTilt
+            let tz = y * sinTilt + rz * cosTilt
+            let scale = focal / max(tz + distance, 1)
+            return CGPoint(x: centre.x + rx * scale, y: centre.y + ty * scale)
+        }
+
+        let unit = base * 0.325
+
+        // Концентрические круги: внутри венца и далеко за ним.
+        for ring in 1...7 {
+            let r = unit * (0.28 + Double(ring) * 0.30)
+            var path = Path()
+            for step in 0...120 {
+                let theta = Double(step) / 120 * 2 * .pi
+                let point = project(cos(theta) * r, 0, sin(theta) * r)
+                if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            let fade = 1 - Double(ring) / 8
+            context.stroke(path,
+                           with: .color(.white.opacity(0.020 + 0.030 * fade)),
+                           style: StrokeStyle(lineWidth: max(0.4, base * 0.0006)))
+        }
+
+        // Лучи по границам шестнадцати полос, уходящие наружу.
+        for band in 0..<32 {
+            let theta = Double(band) / 32 * 2 * .pi
+            var path = Path()
+            path.move(to: project(cos(theta) * unit * 0.30, 0, sin(theta) * unit * 0.30))
+            path.addLine(to: project(cos(theta) * unit * 2.35, 0, sin(theta) * unit * 2.35))
+            context.stroke(path,
+                           with: .color(Color(hue: hues.deep,
+                                              saturation: palette.saturation * 0.5,
+                                              brightness: 1).opacity(band % 4 == 0 ? 0.045 : 0.022)),
+                           style: StrokeStyle(lineWidth: max(0.4, base * 0.0006)))
+        }
     }
 
     /// Затемнение по краям прижимает внимание к центру и добавляет глубины.
@@ -232,11 +262,10 @@ public struct CrownScene: View {
                 center: centre, startRadius: 0, endRadius: glowRadius))
         context.blendMode = .normal
 
-        struct Bulb {
+        struct Lamp {
+            var stem: Path
             var glass: Path
             var filament: Path
-            var socket: Path
-            var reflection: Path
             var tip: CGPoint
             var tipSize: Double
             var peak: Path?
@@ -245,153 +274,181 @@ public struct CrownScene: View {
             var value: Double
         }
 
-        var bulbs: [Bulb] = []
-        bulbs.reserveCapacity(Self.columns)
+        var lamps: [Lamp] = []
+        lamps.reserveCapacity(Self.columns)
 
         let step = 2 * Double.pi / Double(Self.columns)
         let halfWidth = radius * step * 0.30
+
+        // Колба всегда одного размера — меняется только высота стойки под ней.
+        // Раньше растягивалась сама колба вместе с нитью, и лампа переставала
+        // читаться лампой: у настоящей меняется накал, а не размер стекла.
+        let bulbHeight = maxHeight * 0.115
+        let stemRange = maxHeight - bulbHeight
 
         for index in 0..<Self.columns {
             let position = Double(index) / Double(Self.columns)
             let theta = position * 2 * .pi
             let value = spectrum(at: position)
             let peakValue = peakSpectrum(at: position)
-            let height = maxHeight * (0.06 + 0.94 * value)
+
+            let stemTop = stemRange * (0.04 + 0.96 * value)
+            let bulbBottom = stemTop
+            let bulbTop = stemTop + bulbHeight
 
             let tangentX = -sin(theta), tangentZ = cos(theta)
             let cx = cos(theta) * radius, cz = sin(theta) * radius
             let leftX = cx - tangentX * halfWidth, leftZ = cz - tangentZ * halfWidth
             let rightX = cx + tangentX * halfWidth, rightZ = cz + tangentZ * halfWidth
 
-            let baseLeft = project(leftX, 0, leftZ)
-            let baseRight = project(rightX, 0, rightZ)
-            let shoulderLeft = project(leftX, -height * 0.86, leftZ)
-            let shoulderRight = project(rightX, -height * 0.86, rightZ)
-            let crown = project(cx, -height, cz)
+            // Стойка — тонкая линия от плоскости до колбы.
+            let footPoint = project(cx, 0, cz)
+            let stemTopPoint = project(cx, -bulbBottom, cz)
+            var stem = Path()
+            stem.move(to: footPoint.0)
+            stem.addLine(to: stemTopPoint.0)
 
-            // Стекло колбы: прямые стенки и скруглённая макушка. Контур едва намечен —
-            // колба не должна спорить с нитью, она только придаёт форме характер.
+            // Стекло колбы.
+            let glassBaseLeft = project(leftX, -bulbBottom, leftZ)
+            let glassBaseRight = project(rightX, -bulbBottom, rightZ)
+            let shoulderLeft = project(leftX, -(bulbBottom + bulbHeight * 0.72), leftZ)
+            let shoulderRight = project(rightX, -(bulbBottom + bulbHeight * 0.72), rightZ)
+            let crown = project(cx, -bulbTop, cz)
+
             var glass = Path()
-            glass.move(to: baseLeft.0)
+            glass.move(to: glassBaseLeft.0)
             glass.addLine(to: shoulderLeft.0)
             glass.addQuadCurve(to: crown.0,
                                control: CGPoint(x: shoulderLeft.0.x,
-                                                y: crown.0.y + (shoulderLeft.0.y - crown.0.y) * 0.15))
+                                                y: crown.0.y + (shoulderLeft.0.y - crown.0.y) * 0.2))
             glass.addQuadCurve(to: shoulderRight.0,
                                control: CGPoint(x: shoulderRight.0.x,
-                                                y: crown.0.y + (shoulderRight.0.y - crown.0.y) * 0.15))
-            glass.addLine(to: baseRight.0)
+                                                y: crown.0.y + (shoulderRight.0.y - crown.0.y) * 0.2))
+            glass.addLine(to: glassBaseRight.0)
+            glass.closeSubpath()
 
-            // Нить накаливания внутри: от цоколя почти до макушки.
-            let filamentBottom = project(cx, -height * 0.14, cz)
-            let filamentTop = project(cx, -height * 0.80, cz)
+            // Нить внутри колбы — та же длина у всех, меняется только накал.
             var filament = Path()
-            filament.move(to: filamentBottom.0)
-            filament.addLine(to: filamentTop.0)
+            filament.move(to: project(cx, -(bulbBottom + bulbHeight * 0.18), cz).0)
+            filament.addLine(to: project(cx, -(bulbBottom + bulbHeight * 0.76), cz).0)
 
-            // Цоколь — короткая перемычка у основания, самая мелкая деталь колбы.
-            let socketTop = project(cx, -height * 0.10, cz)
-            var socket = Path()
-            socket.move(to: baseLeft.0)
-            socket.addLine(to: baseRight.0)
-            socket.addLine(to: CGPoint(x: baseRight.0.x, y: socketTop.0.y))
-            socket.addLine(to: CGPoint(x: baseLeft.0.x, y: socketTop.0.y))
-            socket.closeSubpath()
-
-            // Отражение под плоскостью.
-            let mirror = project(cx, height * 0.40, cz)
-            var reflection = Path()
-            reflection.move(to: baseLeft.0)
-            reflection.addLine(to: baseRight.0)
-            reflection.addLine(to: CGPoint(x: baseRight.0.x, y: mirror.0.y))
-            reflection.addLine(to: CGPoint(x: baseLeft.0.x, y: mirror.0.y))
-            reflection.closeSubpath()
-
-            // Пиковая отметка: тонкая риска на недавнем максимуме. Она висит над
-            // колбой и медленно оседает — сразу видно, где звук был громче всего.
             var peak: Path?
             if peakValue > value + 0.04 {
-                let peakHeight = maxHeight * (0.06 + 0.94 * peakValue)
-                let markLeft = project(leftX, -peakHeight, leftZ)
-                let markRight = project(rightX, -peakHeight, rightZ)
+                let peakY = stemRange * (0.04 + 0.96 * peakValue) + bulbHeight * 0.5
+                let markLeft = project(leftX * 1.25, -peakY, leftZ * 1.25)
+                let markRight = project(rightX * 1.25, -peakY, rightZ * 1.25)
                 var mark = Path()
                 mark.move(to: markLeft.0)
                 mark.addLine(to: markRight.0)
                 peak = mark
             }
 
-            bulbs.append(Bulb(glass: glass, filament: filament, socket: socket,
-                              reflection: reflection,
+            lamps.append(Lamp(stem: stem, glass: glass, filament: filament,
                               tip: crown.0,
-                              tipSize: halfWidth * crown.1 * 0.55,
+                              tipSize: halfWidth * crown.1 * 0.45,
                               peak: peak,
-                              depth: (baseLeft.2 + baseRight.2) / 2,
-                              nearness: baseLeft.1 / referenceScale,
+                              depth: footPoint.2,
+                              nearness: footPoint.1 / referenceScale,
                               value: value))
         }
 
-        // Дальние колбы рисуются первыми.
-        bulbs.sort { $0.depth > $1.depth }
+        lamps.sort { $0.depth > $1.depth }
 
-        for bulb in bulbs {
-            let depthFade = max(0, min(1, (bulb.nearness - 0.72) / 0.55))
-            let intensity = (0.14 + 0.86 * bulb.value) * (0.30 + 0.70 * depthFade)
+        for lamp in lamps {
+            let depthFade = max(0, min(1, (lamp.nearness - 0.72) / 0.55))
+            let intensity = (0.10 + 0.90 * lamp.value) * (0.30 + 0.70 * depthFade)
 
-            let hue = hues.deep + (hues.hot - hues.deep) * bulb.value
+            let hue = hues.deep + (hues.hot - hues.deep) * lamp.value
             let tint = Color(hue: hue,
-                             saturation: palette.saturation * (0.92 - 0.45 * bulb.value),
+                             saturation: palette.saturation * (0.92 - 0.45 * lamp.value),
                              brightness: 1)
 
-            // Отражение.
-            context.fill(bulb.reflection,
-                         with: .linearGradient(
-                             Gradient(colors: [tint.opacity(0.13 * intensity), .clear]),
-                             startPoint: CGPoint(x: 0, y: centre.y),
-                             endPoint: CGPoint(x: 0, y: centre.y + maxHeight * 0.45)))
+            // Стойка: тонкая и тёмная, она не должна спорить с колбой.
+            context.stroke(lamp.stem,
+                           with: .color(tint.opacity(0.12 + 0.20 * depthFade)),
+                           style: StrokeStyle(lineWidth: max(0.5, base * 0.0009)))
 
-            // Стекло: очень слабый контур плюс едва заметная заливка.
-            context.fill(bulb.glass, with: .color(tint.opacity(0.05 + 0.10 * intensity)))
-            context.stroke(bulb.glass,
-                           with: .color(tint.opacity(0.10 + 0.22 * intensity)),
+            // Стекло: почти невидимое.
+            context.fill(lamp.glass, with: .color(tint.opacity(0.05 + 0.09 * intensity)))
+            context.stroke(lamp.glass,
+                           with: .color(tint.opacity(0.12 + 0.22 * intensity)),
                            style: StrokeStyle(lineWidth: max(0.5, base * 0.0008), lineJoin: .round))
 
-            // Цоколь — тёмный, он и отделяет колбу от плоскости.
-            context.fill(bulb.socket, with: .color(.black.opacity(0.30 + 0.25 * depthFade)))
-            context.stroke(bulb.socket,
-                           with: .color(tint.opacity(0.10 + 0.14 * intensity)),
-                           style: StrokeStyle(lineWidth: max(0.4, base * 0.0006)))
-
-            // Нить: ореол и сама нить. Это единственное место в колбе, где свет яркий.
+            // Нить — единственное яркое место.
             context.blendMode = .plusLighter
-            context.stroke(bulb.filament,
-                           with: .color(tint.opacity(0.10 + 0.30 * intensity)),
-                           style: StrokeStyle(lineWidth: max(1.2, base * 0.0035),
-                                              lineCap: .round))
-            context.stroke(bulb.filament,
+            context.stroke(lamp.filament,
+                           with: .color(tint.opacity(0.08 + 0.32 * intensity)),
+                           style: StrokeStyle(lineWidth: max(1.4, base * 0.0040), lineCap: .round))
+            context.stroke(lamp.filament,
                            with: .color(Color(hue: hue,
-                                              saturation: palette.saturation * (0.55 - 0.45 * bulb.value),
-                                              brightness: 1).opacity(0.35 + 0.60 * intensity)),
-                           style: StrokeStyle(lineWidth: max(0.6, base * 0.0011),
-                                              lineCap: .round))
+                                              saturation: palette.saturation * (0.5 - 0.45 * lamp.value),
+                                              brightness: 1).opacity(0.30 + 0.65 * intensity)),
+                           style: StrokeStyle(lineWidth: max(0.7, base * 0.0013), lineCap: .round))
 
-            // Капля на макушке — блик стекла.
-            let tipSize = max(0.6, bulb.tipSize)
+            let tipSize = max(0.6, lamp.tipSize)
             context.fill(
-                Path(ellipseIn: CGRect(x: bulb.tip.x - tipSize, y: bulb.tip.y - tipSize * 0.7,
+                Path(ellipseIn: CGRect(x: lamp.tip.x - tipSize, y: lamp.tip.y - tipSize * 0.7,
                                        width: tipSize * 2, height: tipSize * 1.4)),
-                with: .color(.white.opacity(0.10 + 0.45 * intensity)))
+                with: .color(.white.opacity(0.08 + 0.40 * intensity)))
             context.blendMode = .normal
 
-            // Пиковая риска.
-            if let peak = bulb.peak {
+            if let peak = lamp.peak {
                 context.stroke(peak,
-                               with: .color(.white.opacity(0.14 + 0.26 * depthFade)),
-                               style: StrokeStyle(lineWidth: max(0.5, base * 0.0009),
-                                                  lineCap: .round))
+                               with: .color(.white.opacity(0.12 + 0.24 * depthFade)),
+                               style: StrokeStyle(lineWidth: max(0.5, base * 0.0009), lineCap: .round))
             }
         }
 
+        drawLevelScale(&context, project: project, radius: radius,
+                       maxHeight: maxHeight, base: base)
         drawBaseRing(&context, project: project, radius: radius, base: base, hues: hues)
+    }
+
+    /// Шкала уровня по высоте: тонкие кольца на характерных отметках в децибелах
+    /// и подписи к ним. Раньше высота колонок была величиной без единиц измерения —
+    /// теперь по ней можно читать уровень, а не только сравнивать столбики между собой.
+    private func drawLevelScale(_ context: inout GraphicsContext,
+                                project: (Double, Double, Double) -> (CGPoint, Double, Double),
+                                radius: Double,
+                                maxHeight: Double,
+                                base: Double)
+    {
+        // Отметки выбраны по децибелам, а не по долям: -12 дБ это ровно четверть
+        // амплитуды, и глазу привычнее видеть шкалу прибора.
+        let marks: [(level: Double, text: String)] = [
+            (0.251, "−12"), (0.501, "−6"), (0.708, "−3"), (1.0, "0 dB"),
+        ]
+
+        for mark in marks {
+            let height = maxHeight * mark.level
+            var ring = Path()
+            for step in 0...120 {
+                let theta = Double(step) / 120 * 2 * .pi
+                let point = project(cos(theta) * radius * 1.02, -height, sin(theta) * radius * 1.02).0
+                if step == 0 { ring.move(to: point) } else { ring.addLine(to: point) }
+            }
+            context.stroke(ring,
+                           with: .color(.white.opacity(mark.level == 1.0 ? 0.10 : 0.055)),
+                           style: StrokeStyle(lineWidth: max(0.4, base * 0.0006),
+                                              dash: [base * 0.004, base * 0.010]))
+
+            // Подпись ставится на ближней к зрителю стороне кольца.
+            var nearest = CGPoint.zero
+            var nearestDepth = Double.infinity
+            for step in 0..<48 {
+                let theta = Double(step) / 48 * 2 * .pi
+                let projected = project(cos(theta) * radius * 1.30, -height, sin(theta) * radius * 1.30)
+                if projected.2 < nearestDepth {
+                    nearestDepth = projected.2
+                    nearest = projected.0
+                }
+            }
+            var text = context.resolve(
+                Text(mark.text)
+                    .font(.system(size: base * 0.015, weight: .medium, design: .rounded)))
+            text.shading = .color(.white.opacity(0.24))
+            context.draw(text, at: nearest, anchor: .center)
+        }
     }
 
     /// Кольцо-основание с засечками на настоящих границах полос WLED и подписями
@@ -428,28 +485,41 @@ public struct CrownScene: View {
         }
 
         // Подписи на характерных частотах — по таблице полос прошивки.
-        let labels: [(band: Int, text: String)] = [
-            (0, "43"), (5, "430"), (10, "1.9k"), (15, "9.2k"),
-        ]
+        // Подписи по границам полос из таблицы прошивки — через одну, чтобы
+        // разметка была частой, но ещё читалась.
+        let edges = [43, 86, 129, 216, 301, 430, 560, 818, 1120,
+                     1421, 1895, 2412, 3015, 3704, 4479, 9259]
+        let labels: [(band: Int, text: String)] = stride(from: 0, through: 15, by: 2).map { band in
+            let hz = edges[band]
+            let text = hz >= 1000
+                ? String(format: "%.1fk", Double(hz) / 1000)
+                : "\(hz)"
+            return (band, text)
+        }
         for label in labels {
             // Полоса встречается на круге дважды из-за зеркальной симметрии.
-            // Берём ту сторону, что ближе к зрителю: на дальней подпись легла бы
-            // поверх колонн и мешала.
+            // Берём ту сторону, что ближе к зрителю.
             let first = Double(label.band) / 15 * 0.5
             let second = 1 - first
             let candidates = [first, second].map { position -> (CGPoint, Double) in
                 let theta = position * 2 * .pi
-                let projected = project(cos(theta) * radius * 1.34, 0, sin(theta) * radius * 1.34)
+                let projected = project(cos(theta) * radius * 1.16, 0, sin(theta) * radius * 1.16)
                 return (projected.0, projected.2)
             }
-            // Меньшая глубина — ближе к зрителю.
-            let spot = (candidates[0].1 < candidates[1].1 ? candidates[0] : candidates[1]).0
+            let chosen = candidates[0].1 < candidates[1].1 ? candidates[0] : candidates[1]
+
+            // Круг вращается, поэтому подпись уезжает то ближе, то дальше.
+            // Гасим её на дальней половине и плавно проявляем на ближней —
+            // так надписи не пляшут поверх колонн и не мельтешат.
+            let front = max(0, min(1, (radius * 0.55 - chosen.1) / (radius * 0.85)))
+            let alpha = 0.30 * front * front
+            guard alpha > 0.02 else { continue }
 
             var text = context.resolve(
                 Text(label.text)
-                    .font(.system(size: base * 0.016, weight: .medium, design: .rounded)))
-            text.shading = .color(.white.opacity(0.26))
-            context.draw(text, at: spot, anchor: .center)
+                    .font(.system(size: base * 0.015, weight: .medium, design: .rounded)))
+            text.shading = .color(.white.opacity(alpha))
+            context.draw(text, at: chosen.0, anchor: .center)
         }
     }
 }
