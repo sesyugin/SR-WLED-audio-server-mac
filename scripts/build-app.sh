@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Собирает SR-WLED.app. Xcode не нужен — достаточно Command Line Tools.
+# Собирает SR-WLED-Server-Auralis-macos.app. Xcode не нужен — достаточно Command Line Tools.
 #
 # Бандл обязателен не для красоты: macOS показывает диалоги разрешений только
 # приложению с Info.plist и подписью. Голый бинарник из swift build прав на
@@ -7,8 +7,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP_NAME="Auralis"
-BUNDLE_ID="${SRWLED_BUNDLE_ID:-io.github.auralis.mac}"
+APP_NAME="SR-WLED-Server-Auralis-macos"
+BUNDLE_ID="${SRWLED_BUNDLE_ID:-io.github.srwled.auralis.mac}"
 VERSION="0.3.0"
 BUILD="3"
 DEST="dist/${APP_NAME}.app"
@@ -39,7 +39,7 @@ cat > "$DEST/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key>
     <string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key>
-    <string>Auralis</string>
+    <string>SR-WLED-Server-Auralis-macos</string>
     <key>CFBundleIdentifier</key>
     <string>${BUNDLE_ID}</string>
     <key>CFBundleExecutable</key>

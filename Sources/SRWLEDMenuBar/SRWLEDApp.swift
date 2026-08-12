@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import SRWLEDVisuals
+import SRWLEDCore
 
 /// Содержимое MenuBarExtra создаётся только при открытии меню, поэтому автозапуск
 /// вешаем на делегат приложения — иначе сервер поднимался бы лишь после первого клика.
@@ -58,14 +60,14 @@ struct SRWLEDApp: App {
 
     var body: some Scene {
         // Главное окно: значок в Dock, крупная визуализация, все настройки.
-        Window("SR-WLED", id: "main") {
+        Window(Brand.shortName, id: "main") {
             MainWindow(model: model)
         }
         .defaultSize(width: 900, height: 560)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(replacing: .appInfo) {
-                Button("О программе Auralis") { openAbout() }
+                Button(model.localized(.aboutApp)) { openAbout() }
             }
         }
 

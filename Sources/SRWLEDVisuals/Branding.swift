@@ -2,10 +2,14 @@ import SwiftUI
 
 /// Фирменный стиль.
 public enum Brand {
-    public static let name = "Auralis"
+    /// Имя приложения — то, что видно в Dock, в строке меню и в списках системы.
+    public static let name = "SR-WLED-Server-Auralis-macos"
+    /// Короткая форма для тесных мест: шапка окна, подпись под знаком.
+    /// Полное имя туда не влезает и обрезается многоточием на середине.
+    public static let shortName = "Auralis"
     public static let tagline = "Sound into light"
     /// Полное имя для окна «О программе» и системных списков.
-    public static let fullName = "Auralis · WLED audio server"
+    public static let fullName = "SR-WLED-Server-Auralis-macos"
 
     /// Фирменные цвета. Один тёплый акцент и глубокий фон — та же логика,
     /// что и в визуализации: цвет один, работает яркость.
@@ -14,10 +18,20 @@ public enum Brand {
     public static let ink = Color(red: 0.043, green: 0.035, blue: 0.055)
 }
 
-/// Знак: светодиодная лента, свёрнутая в кольцо с разрывом, и яркий пиксель на конце.
+/// Знак: буква A, сложенная из светящихся полос.
 ///
-/// Рисуется кодом, а не картинкой: тогда он одинаково чёткий и в строке меню
-/// на 16 точках, и в иконке на 1024, и его не надо хранить в ресурсах.
+/// A — от Auralis, а полосы — кадр эквалайзера: у знака та же природа, что
+/// у всего, что программа делает. Прежний знак был волной, рассыпающейся
+/// в пиксели; на шестнадцати точках в строке меню от него оставалась
+/// невнятная закорючка, потому что рассыпание — эффект, а не форма.
+///
+/// Буква собрана из горизонтальных полос разной длины и яркости: две
+/// наклонные стойки и перекладина. Полосы — не украшение: именно по ним
+/// знак читается и в 16 точек, и в 1024, потому что у горизонтальной
+/// полосы силуэт не портится ни при каком уменьшении.
+///
+/// Рисуется кодом, а не картинкой: тогда он одинаково чёткий на любом
+/// размере и его не надо хранить в ресурсах.
 public struct BrandMark: View {
     public var lit: Double
     public var monochrome: Bool
@@ -27,87 +41,138 @@ public struct BrandMark: View {
         self.monochrome = monochrome
     }
 
+    /// Сколько полос в букве — по размеру знака.
+    ///
+    /// Оптическое кегельное: на девяти полосах буква хороша в иконке
+    /// на 512 точек, а в списке Finder на 32 просветы между ними уходят
+    /// в один пиксель, треугольный просвет внутри буквы затягивается,
+    /// и A читается пирамидой. Мелкий знак набирается крупнее — тремя
+    /// или пятью полосами, — и остаётся буквой.
+    private static func rows(for side: Double) -> Int {
+        if side < 150 { return 7 }
+        return 9
+    }
+
     public var body: some View {
         Canvas { context, size in
             let side = min(size.width, size.height)
-            let midY = size.height / 2
-            let left = size.width * 0.5 - side * 0.40
-            let right = size.width * 0.5 + side * 0.40
-            let span = right - left
-            let amplitude = side * 0.20
-            let thickness = side * 0.085
+            let centre = CGPoint(x: size.width / 2, y: size.height / 2)
+            // Буква занимает не весь квадрат: у знака должны быть поля,
+            // иначе в круглой маске macOS он подходит к самой кромке.
+            let height = side * 0.76
+            let halfWidth = side * 0.34
+            let top = centre.y - height / 2
+            // Самый мелкий знак набирается не полосами вовсе. На шестнадцати
+            // точках полоса — это один пиксель, просвет между ними — тоже один,
+            // и любая раскладка превращается в кашу: на пробе трёхполосная
+            // буква читалась буквой T на ножках. Здесь A рисуется штрихами,
+            // как в шрифте, и остаётся собой.
+            guard side >= 72 else {
+                let bottom = top + height
+                let apexHalf = halfWidth * 0.17
+                let weight = side * 0.15
+                let ink: Color = monochrome
+                    ? .black
+                    : Color(hue: 0.062, saturation: 0.80, brightness: 0.98)
 
-            /// Одна волна на всю ширину знака. Слева она сплошная, справа рассыпается
-            /// на отдельные светодиоды — это и есть суть программы: звук становится светом.
-            func wave(_ t: Double) -> CGPoint {
-                let x = left + span * t
-                // Затухание к концу: волна «успокаивается» в ровную линию светодиодов.
-                // Без него хвост уходил по диагонали в угол и знак заваливался.
-                let damping = 1.0 - 0.88 * t * t
-                let y = midY - sin(t * .pi * 2.6) * amplitude * damping
-                return CGPoint(x: x, y: y)
+                var glyph = Path()
+                glyph.move(to: CGPoint(x: centre.x - halfWidth, y: bottom))
+                glyph.addLine(to: CGPoint(x: centre.x - apexHalf, y: top))
+                glyph.move(to: CGPoint(x: centre.x + halfWidth, y: bottom))
+                glyph.addLine(to: CGPoint(x: centre.x + apexHalf, y: top))
+                glyph.move(to: CGPoint(x: centre.x - halfWidth * 0.62,
+                                       y: bottom - height * 0.30))
+                glyph.addLine(to: CGPoint(x: centre.x + halfWidth * 0.62,
+                                          y: bottom - height * 0.30))
+                context.stroke(glyph, with: .color(ink),
+                               style: StrokeStyle(lineWidth: weight,
+                                                  lineCap: .round, lineJoin: .round))
+                return
             }
 
-            // Сплошная часть волны — левые три пятых.
-            var line = Path()
-            for step in 0...60 {
-                let t = Double(step) / 60 * 0.56
-                let point = wave(t)
-                if step == 0 { line.move(to: point) } else { line.addLine(to: point) }
+            let rows = Self.rows(for: side)
+            let pitch = height / Double(rows)
+            // Полоса высокая, просвет тонкий: буква должна читаться сплошной
+            // формой, набранной из полос, а не пунктиром. При полосе в половину
+            // шага знак рассыпался на отдельные чёрточки — форму приходилось
+            // додумывать, а на шестнадцати точках додумывать нечем.
+            let bar = pitch * 0.68
+            // Толщина штриха буквы. Задана долей ширины, а не полосы: у буквы
+            // штрих один и тот же по всей высоте, иначе стойки к низу расплываются.
+            let stroke = halfWidth * 0.54
+
+            /// Полуширина буквы на своей высоте: наверху сходится в вершину,
+            /// внизу расходится на всю ширину. Вершина срезана — у наборных
+            /// шрифтов она такая же, а острая вырождается в точку и пропадает
+            /// первой при уменьшении.
+            func halfSpan(_ level: Double) -> Double {
+                let apex = 0.17
+                return halfWidth * (apex + (1 - apex) * level)
             }
 
-            if !monochrome {
-                context.blendMode = .plusLighter
-                for width in stride(from: 5.0, through: 1.5, by: -0.5) {
-                    context.stroke(line,
-                                   with: .color(Brand.accent.opacity(0.02 * lit)),
-                                   style: StrokeStyle(lineWidth: thickness * width, lineCap: .round))
-                }
-                context.blendMode = .normal
-            }
+            // Перекладина — на трети снизу, как в наборном шрифте. Выше она
+            // делает букву похожей на дельту, ниже — на треугольник с юбкой.
+            // Перекладина ниже середины: у трёх полос это средняя,
+            // у девяти — третья снизу.
+            let crossbarRow = rows <= 3 ? 1 : rows - 3
 
-            context.stroke(line,
-                           with: monochrome
-                               ? .color(.black)
-                               : .linearGradient(
-                                   Gradient(colors: [Brand.accentDeep, Brand.accent]),
-                                   startPoint: CGPoint(x: left, y: midY),
-                                   endPoint: CGPoint(x: left + span * 0.56, y: midY)),
-                           style: StrokeStyle(lineWidth: thickness, lineCap: .round))
+            for row in 0..<rows {
+                let level = Double(row) / Double(rows - 1)
+                let y = top + pitch * (Double(row) + 0.5)
+                let span = halfSpan(level)
 
-            // Правая часть: отдельные светодиоды по той же кривой, разгорающиеся к концу.
-            let pixels = 5
-            for index in 0..<pixels {
-                let t = 0.62 + Double(index) / Double(pixels - 1) * 0.38
-                let point = wave(t)
-                let progress = Double(index) / Double(pixels - 1)
-                let dot = thickness * (0.58 + 0.30 * progress)
-
-                if !monochrome {
-                    context.blendMode = .plusLighter
-                    let halo = dot * 3.6
-                    context.fill(
-                        Path(ellipseIn: CGRect(x: point.x - halo, y: point.y - halo,
-                                               width: halo * 2, height: halo * 2)),
-                        with: .radialGradient(
-                            Gradient(stops: [
-                                .init(color: Brand.accent.opacity((0.20 + 0.55 * progress) * lit),
-                                      location: 0),
-                                .init(color: Brand.accent.opacity(0), location: 1),
-                            ]),
-                            center: point, startRadius: 0, endRadius: halo))
-                    context.blendMode = .normal
-                }
-
+                // Яркость растёт книзу: у буквы появляется вес и опора,
+                // а знак перестаёт быть плоским набором одинаковых чёрточек.
+                // Ровно тем же приёмом набрана и вся визуализация — тон один,
+                // работает яркость.
+                let heat = 0.30 + 0.70 * level
                 let tint: Color = monochrome
                     ? .black
-                    : Color(hue: 0.075, saturation: 0.85 - 0.85 * progress, brightness: 1)
-                context.fill(
-                    Path(ellipseIn: CGRect(x: point.x - dot, y: point.y - dot,
-                                           width: dot * 2, height: dot * 2)),
-                    with: .color(tint))
+                    : Color(hue: 0.030 + 0.062 * heat,
+                            saturation: 0.96 - 0.34 * heat,
+                            brightness: 0.52 + 0.48 * heat)
+
+                var segments: [(Double, Double)] = []
+                if row == crossbarRow || span * 2 <= stroke * 1.35 {
+                    // Перекладина и вершина — одна сплошная полоса.
+                    segments = [(-span, span)]
+                } else {
+                    // Ниже перекладины буква раскрыта: две стойки и просвет.
+                    // Ширина стойки постоянная, но у самой вершины её подрезает
+                    // сама буква — иначе стойки заходят друг за друга.
+                    let width = min(stroke, span * 0.9)
+                    segments = [(-span, -span + width), (span - width, span)]
+                }
+
+                for segment in segments {
+                    let rect = CGRect(x: centre.x + segment.0,
+                                      y: y - bar / 2,
+                                      width: segment.1 - segment.0,
+                                      height: bar)
+                    // Скругление по высоте полосы, но не больше четверти её
+                    // длины: у короткой стойки полное скругление превращает
+                    // полосу в таблетку, и штрих теряет прямые бока.
+                    let radius = min(bar / 2, rect.width / 4)
+
+                    // Заливка с перепадом по высоте самой полосы: сверху она
+                    // светлее, снизу глуше. Ореола нет намеренно — знак живёт
+                    // на прозрачном фоне, а сложение цвета по прозрачности
+                    // даёт белёсые пятна вокруг каждой полосы вместо свечения.
+                    context.fill(
+                        Path(roundedRect: rect, cornerRadius: radius),
+                        with: monochrome
+                            ? .color(.black)
+                            : .linearGradient(
+                                Gradient(colors: [
+                                    tint,
+                                    tint.opacity(0.82),
+                                ]),
+                                startPoint: CGPoint(x: rect.midX, y: rect.minY),
+                                endPoint: CGPoint(x: rect.midX, y: rect.maxY)))
+                }
             }
         }
+        .opacity(0.35 + 0.65 * min(1, max(0, lit)))
     }
 }
 
@@ -124,7 +189,7 @@ public struct BrandLockup: View {
             BrandMark()
                 .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 0) {
-                Text(Brand.name)
+                Text(Brand.shortName)
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .kerning(0.6)
                     .foregroundStyle(.white)

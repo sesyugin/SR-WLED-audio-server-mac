@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import SRWLEDVisuals
 
 /// Значок в строке меню на AppKit.
 ///
@@ -38,7 +39,7 @@ final class StatusItemController: NSObject {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
         item.button?.action = #selector(togglePopover(_:))
-        item.button?.toolTip = "SR-WLED — спектр звука на ленты"
+        item.button?.toolTip = Brand.name
         statusItem = item
 
         let popover = NSPopover()

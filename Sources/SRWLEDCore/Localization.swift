@@ -111,6 +111,7 @@ public enum S: String, CaseIterable, Sendable {
     // Ленты
     case deviceSending, deviceDisabled, deviceNoUsermod
     case stripsReceiving, stripsNoneReceiving, stripsAdvice
+    case aboutApp
 }
 
 /// Переводы. Английский — опорный: если ключа нет в другом языке, берётся он.
@@ -189,7 +190,7 @@ public enum L10n {
             .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ pkt/s to %@ addr.",
             .diagDevicesUnchecked: "state not checked",
             .diagDevicesAdvice: "Search for strips to check them",
-            .diagTitle: "Auralis — diagnostics",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — diagnostics",
             .columnColour: "Column colour", .animationOn: "Animation on",
             .animationOff: "Animation off", .quality: "Quality",
             .qualityFull: "Full", .qualityLight: "Light",
@@ -209,6 +210,7 @@ public enum L10n {
             .stripsReceiving: "%@ of %@ receiving from us",
             .stripsNoneReceiving: "found %@, none receiving",
             .stripsAdvice: "On the strip: Sync → Audio Sync → Receive",
+            .aboutApp: "About this app",
         ],
 
         .russian: [
@@ -258,7 +260,7 @@ public enum L10n {
             .diagSource: "%@, %@ Гц", .diagSendingRate: "%@ пак/с на %@ адр.",
             .diagDevicesUnchecked: "состояние не проверялось",
             .diagDevicesAdvice: "Запусти поиск лент, чтобы их проверить",
-            .diagTitle: "Auralis — диагностика",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — диагностика",
             .columnColour: "Цвет столбиков", .animationOn: "Анимация включена",
             .animationOff: "Анимация выключена", .quality: "Качество",
             .qualityFull: "Полное", .qualityLight: "Лёгкое",
@@ -278,6 +280,7 @@ public enum L10n {
             .stripsReceiving: "принимают %@ из %@",
             .stripsNoneReceiving: "найдено %@, ни одна не принимает",
             .stripsAdvice: "На ленте: Sync → Audio Sync → Receive",
+            .aboutApp: "О программе",
         ],
 
         .chinese: [
@@ -326,7 +329,7 @@ public enum L10n {
             .diagSource: "%@，%@ 赫兹", .diagSendingRate: "%@ 包/秒 发往 %@ 个地址",
             .diagDevicesUnchecked: "状态未检查",
             .diagDevicesAdvice: "搜索灯带以进行检查",
-            .diagTitle: "Auralis — 诊断",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — 诊断",
             .columnColour: "柱状图颜色", .animationOn: "动画已开启",
             .animationOff: "动画已关闭", .quality: "画质",
             .qualityFull: "完整", .qualityLight: "轻量",
@@ -346,6 +349,7 @@ public enum L10n {
             .stripsReceiving: "%@ / %@ 正在接收",
             .stripsNoneReceiving: "找到 %@，无一接收",
             .stripsAdvice: "在灯带上：Sync → Audio Sync → Receive",
+            .aboutApp: "关于本应用",
         ],
 
         .hindi: [
@@ -395,7 +399,7 @@ public enum L10n {
             .diagSource: "%@, %@ हर्ट्ज़", .diagSendingRate: "%@ पैकेट/से %@ पतों पर",
             .diagDevicesUnchecked: "स्थिति जाँची नहीं गई",
             .diagDevicesAdvice: "जाँचने के लिए स्ट्रिप खोजें",
-            .diagTitle: "Auralis — निदान",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — निदान",
             .columnColour: "स्तंभ रंग", .animationOn: "एनिमेशन चालू",
             .animationOff: "एनिमेशन बंद", .quality: "गुणवत्ता",
             .qualityFull: "पूर्ण", .qualityLight: "हल्की",
@@ -415,6 +419,7 @@ public enum L10n {
             .stripsReceiving: "%@ में से %@ प्राप्त कर रही हैं",
             .stripsNoneReceiving: "%@ मिलीं, कोई प्राप्त नहीं कर रही",
             .stripsAdvice: "स्ट्रिप पर: Sync → Audio Sync → Receive",
+            .aboutApp: "ऐप के बारे में",
         ],
 
         .spanish: [
@@ -464,7 +469,7 @@ public enum L10n {
             .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ paq/s a %@ dir.",
             .diagDevicesUnchecked: "estado sin comprobar",
             .diagDevicesAdvice: "Busca tiras para comprobarlas",
-            .diagTitle: "Auralis — diagnóstico",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — diagnóstico",
             .columnColour: "Color de las barras", .animationOn: "Animación activada",
             .animationOff: "Animación desactivada", .quality: "Calidad",
             .qualityFull: "Completa", .qualityLight: "Ligera",
@@ -484,6 +489,7 @@ public enum L10n {
             .stripsReceiving: "%@ de %@ reciben",
             .stripsNoneReceiving: "encontradas %@, ninguna recibe",
             .stripsAdvice: "En la tira: Sync → Audio Sync → Receive",
+            .aboutApp: "Acerca de la app",
         ],
 
         .french: [
@@ -533,7 +539,7 @@ public enum L10n {
             .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ paq/s vers %@ adr.",
             .diagDevicesUnchecked: "état non vérifié",
             .diagDevicesAdvice: "Lance une recherche de rubans pour les vérifier",
-            .diagTitle: "Auralis — diagnostic",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — diagnostic",
             .columnColour: "Couleur des barres", .animationOn: "Animation activée",
             .animationOff: "Animation désactivée", .quality: "Qualité",
             .qualityFull: "Complète", .qualityLight: "Légère",
@@ -553,6 +559,7 @@ public enum L10n {
             .stripsReceiving: "%@ sur %@ reçoivent",
             .stripsNoneReceiving: "%@ trouvés, aucun ne reçoit",
             .stripsAdvice: "Sur le ruban : Sync → Audio Sync → Receive",
+            .aboutApp: "À propos",
         ],
 
         .arabic: [
@@ -602,7 +609,7 @@ public enum L10n {
             .diagSource: "%@، %@ هرتز", .diagSendingRate: "%@ حزمة/ث إلى %@ عنوان",
             .diagDevicesUnchecked: "الحالة غير مفحوصة",
             .diagDevicesAdvice: "ابحث عن الأشرطة لفحصها",
-            .diagTitle: "Auralis — التشخيص",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — التشخيص",
             .columnColour: "لون الأعمدة", .animationOn: "الحركة مفعّلة",
             .animationOff: "الحركة متوقفة", .quality: "الجودة",
             .qualityFull: "كاملة", .qualityLight: "خفيفة",
@@ -622,6 +629,7 @@ public enum L10n {
             .stripsReceiving: "%@ من %@ تستقبل",
             .stripsNoneReceiving: "وُجد %@، ولا واحد يستقبل",
             .stripsAdvice: "على الشريط: Sync ← Audio Sync ← Receive",
+            .aboutApp: "حول التطبيق",
         ],
 
         .bengali: [
@@ -671,7 +679,7 @@ public enum L10n {
             .diagSource: "%@, %@ হার্টজ", .diagSendingRate: "%@ প্যাকেট/সে %@ ঠিকানায়",
             .diagDevicesUnchecked: "অবস্থা যাচাই করা হয়নি",
             .diagDevicesAdvice: "যাচাই করতে স্ট্রিপ খুঁজুন",
-            .diagTitle: "Auralis — নির্ণয়",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — নির্ণয়",
             .columnColour: "কলামের রং", .animationOn: "অ্যানিমেশন চালু",
             .animationOff: "অ্যানিমেশন বন্ধ", .quality: "মান",
             .qualityFull: "পূর্ণ", .qualityLight: "হালকা",
@@ -691,6 +699,7 @@ public enum L10n {
             .stripsReceiving: "%@টির মধ্যে %@টি গ্রহণ করছে",
             .stripsNoneReceiving: "%@টি পাওয়া গেছে, কোনোটি গ্রহণ করছে না",
             .stripsAdvice: "স্ট্রিপে: Sync → Audio Sync → Receive",
+            .aboutApp: "অ্যাপ সম্পর্কে",
         ],
 
         .portuguese: [
@@ -740,7 +749,7 @@ public enum L10n {
             .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ pac/s para %@ end.",
             .diagDevicesUnchecked: "estado não verificado",
             .diagDevicesAdvice: "Procure fitas para verificá-las",
-            .diagTitle: "Auralis — diagnóstico",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — diagnóstico",
             .columnColour: "Cor das barras", .animationOn: "Animação ligada",
             .animationOff: "Animação desligada", .quality: "Qualidade",
             .qualityFull: "Completa", .qualityLight: "Leve",
@@ -760,6 +769,7 @@ public enum L10n {
             .stripsReceiving: "%@ de %@ recebendo",
             .stripsNoneReceiving: "encontradas %@, nenhuma recebe",
             .stripsAdvice: "Na fita: Sync → Audio Sync → Receive",
+            .aboutApp: "Sobre o app",
         ],
 
         .urdu: [
@@ -809,7 +819,7 @@ public enum L10n {
             .diagSource: "%@، %@ ہرٹز", .diagSendingRate: "%@ پیکٹ/سیکنڈ %@ پتوں پر",
             .diagDevicesUnchecked: "حالت جانچی نہیں گئی",
             .diagDevicesAdvice: "جانچنے کے لیے سٹرپس تلاش کریں",
-            .diagTitle: "Auralis — تشخیص",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — تشخیص",
             .columnColour: "کالم کا رنگ", .animationOn: "اینیمیشن آن",
             .animationOff: "اینیمیشن آف", .quality: "معیار",
             .qualityFull: "مکمل", .qualityLight: "ہلکا",
@@ -829,6 +839,7 @@ public enum L10n {
             .stripsReceiving: "%@ میں سے %@ وصول کر رہی ہیں",
             .stripsNoneReceiving: "%@ ملیں، کوئی وصول نہیں کر رہی",
             .stripsAdvice: "سٹرپ پر: Sync → Audio Sync → Receive",
+            .aboutApp: "ایپ کے بارے میں",
         ],
 
         .indonesian: [
@@ -878,7 +889,7 @@ public enum L10n {
             .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ paket/dtk ke %@ alamat",
             .diagDevicesUnchecked: "status belum diperiksa",
             .diagDevicesAdvice: "Cari strip untuk memeriksanya",
-            .diagTitle: "Auralis — diagnostik",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — diagnostik",
             .columnColour: "Warna batang", .animationOn: "Animasi aktif",
             .animationOff: "Animasi mati", .quality: "Kualitas",
             .qualityFull: "Penuh", .qualityLight: "Ringan",
@@ -898,6 +909,7 @@ public enum L10n {
             .stripsReceiving: "%@ dari %@ menerima",
             .stripsNoneReceiving: "ditemukan %@, tidak ada yang menerima",
             .stripsAdvice: "Di strip: Sync → Audio Sync → Receive",
+            .aboutApp: "Tentang aplikasi",
         ],
 
         .german: [
@@ -947,7 +959,7 @@ public enum L10n {
             .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ Pak/s an %@ Adr.",
             .diagDevicesUnchecked: "Zustand nicht geprüft",
             .diagDevicesAdvice: "Suche nach Streifen, um sie zu prüfen",
-            .diagTitle: "Auralis — Diagnose",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — Diagnose",
             .columnColour: "Farbe der Balken", .animationOn: "Animation an",
             .animationOff: "Animation aus", .quality: "Qualität",
             .qualityFull: "Voll", .qualityLight: "Leicht",
@@ -967,6 +979,7 @@ public enum L10n {
             .stripsReceiving: "%@ von %@ empfangen",
             .stripsNoneReceiving: "%@ gefunden, keiner empfängt",
             .stripsAdvice: "Am Streifen: Sync → Audio Sync → Receive",
+            .aboutApp: "Über die App",
         ],
 
         .ukrainian: [
@@ -1016,7 +1029,7 @@ public enum L10n {
             .diagSource: "%@, %@ Гц", .diagSendingRate: "%@ пак/с на %@ адр.",
             .diagDevicesUnchecked: "стан не перевірявся",
             .diagDevicesAdvice: "Запусти пошук стрічок, щоб їх перевірити",
-            .diagTitle: "Auralis — діагностика",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — діагностика",
             .columnColour: "Колір стовпчиків", .animationOn: "Анімацію увімкнено",
             .animationOff: "Анімацію вимкнено", .quality: "Якість",
             .qualityFull: "Повна", .qualityLight: "Легка",
@@ -1036,6 +1049,7 @@ public enum L10n {
             .stripsReceiving: "приймають %@ з %@",
             .stripsNoneReceiving: "знайдено %@, жодна не приймає",
             .stripsAdvice: "На стрічці: Sync → Audio Sync → Receive",
+            .aboutApp: "Про програму",
         ],
 
         .italian: [
@@ -1085,7 +1099,7 @@ public enum L10n {
             .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ pacch/s a %@ ind.",
             .diagDevicesUnchecked: "stato non verificato",
             .diagDevicesAdvice: "Cerca le strisce per verificarle",
-            .diagTitle: "Auralis — diagnostica",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — diagnostica",
             .columnColour: "Colore delle barre", .animationOn: "Animazione attiva",
             .animationOff: "Animazione disattivata", .quality: "Qualità",
             .qualityFull: "Completa", .qualityLight: "Leggera",
@@ -1105,6 +1119,7 @@ public enum L10n {
             .stripsReceiving: "%@ su %@ ricevono",
             .stripsNoneReceiving: "trovate %@, nessuna riceve",
             .stripsAdvice: "Sulla striscia: Sync → Audio Sync → Receive",
+            .aboutApp: "Informazioni",
         ],
 
         .swedish: [
@@ -1154,7 +1169,7 @@ public enum L10n {
             .diagSource: "%@, %@ Hz", .diagSendingRate: "%@ paket/s till %@ adr.",
             .diagDevicesUnchecked: "tillstånd ej kontrollerat",
             .diagDevicesAdvice: "Sök efter slingor för att kontrollera dem",
-            .diagTitle: "Auralis — diagnostik",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — diagnostik",
             .columnColour: "Färg på staplarna", .animationOn: "Animation på",
             .animationOff: "Animation av", .quality: "Kvalitet",
             .qualityFull: "Full", .qualityLight: "Lätt",
@@ -1174,6 +1189,7 @@ public enum L10n {
             .stripsReceiving: "%@ av %@ tar emot",
             .stripsNoneReceiving: "hittade %@, ingen tar emot",
             .stripsAdvice: "På slingan: Sync → Audio Sync → Receive",
+            .aboutApp: "Om appen",
         ],
 
         .belarusian: [
@@ -1223,7 +1239,7 @@ public enum L10n {
             .diagSource: "%@, %@ Гц", .diagSendingRate: "%@ пак/с на %@ адр.",
             .diagDevicesUnchecked: "стан не правяраўся",
             .diagDevicesAdvice: "Запусці пошук стужак, каб іх праверыць",
-            .diagTitle: "Auralis — дыягностыка",
+            .diagTitle: "SR-WLED-Server-Auralis-macos — дыягностыка",
             .columnColour: "Колер слупкоў", .animationOn: "Анімацыя ўключана",
             .animationOff: "Анімацыя выключана", .quality: "Якасць",
             .qualityFull: "Поўная", .qualityLight: "Лёгкая",
@@ -1243,6 +1259,7 @@ public enum L10n {
             .stripsReceiving: "прымаюць %@ з %@",
             .stripsNoneReceiving: "знойдзена %@, ніводная не прымае",
             .stripsAdvice: "На стужцы: Sync → Audio Sync → Receive",
+            .aboutApp: "Пра праграму",
         ],
     ]
 }
