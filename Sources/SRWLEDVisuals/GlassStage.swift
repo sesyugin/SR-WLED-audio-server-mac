@@ -82,7 +82,8 @@ struct GlassStage {
         let deck = maxHeight * 0.135
         let onDeck: Solid3D.Projection = { x, y, z in project(x, y - deck, z) }
 
-        drawPodium(&context, project: project, radius: radius, base: base, deck: deck)
+        let deckTop = drawPodium(&context, project: project, radius: radius,
+                                 base: base, deck: deck)
 
         // Рост фигур задан в долях высоты венца, положение — в долях его радиуса.
         // Знак z: положительный уходит от зрителя.
@@ -195,6 +196,64 @@ struct GlassStage {
         // шнур узнаётся шнуром, задать негде. Аппаратура на такой сцене
         // и без того понятно откуда звучит.
 
+        // Отражение в стекле настила. Зеркалится не всё: отражаются четыре
+        // фигуры и два стека портала — то, что на сцене крупное и светлое.
+        // Барабаны, стойки и ферма пропущены нарочно, и не только ради цены
+        // кадра: россыпь мелких трубок, отражённая под ногами, читается
+        // не отражением, а грязью на полу.
+        //
+        // Зеркало — та же проекция, но с высотой, отражённой относительно
+        // настила: точке на высоте h соответствует точка на -h под ним.
+        // Обрезка по контуру настила обязательна — за его краем отражению
+        // не в чем отражаться.
+        // Отражение поджато по высоте вдвое. Честное зеркало на этой камере
+        // тянет двойника едва ли не до края настила, и под сценой оказывается
+        // вторая сцена, спорящая с первой. Стекло тут не идеальное — в нём
+        // есть матовость, и отражение в такой плите всегда короче предмета.
+        let mirror: Solid3D.Projection = { x, y, z in project(x, -y * 0.52 - deck, z) }
+        var echo: [Solid3D.Piece] = []
+        echo += speaker(at: place(-0.545, 0.17), height: stand * 0.385, turn: -0.34,
+                        project: mirror, line: line)
+        echo += speaker(at: place(0.545, 0.17), height: stand * 0.385, turn: 0.34,
+                        project: mirror, line: line)
+        echo += guitarist(at: place(-0.30, -0.09), height: stand * 0.44,
+                          project: mirror, line: line)
+        echo += keyboardist(at: place(0.30, -0.07), height: stand * 0.42,
+                            project: mirror, line: line)
+        echo += vocalist(at: place(0.00, -0.37), height: stand * 0.414,
+                         project: mirror, line: line)
+        echo += drummer(at: place(0.00, 0.37), height: stand * 0.40,
+                        project: mirror, line: line)
+        // Отражение слабое и сортируется наоборот: под стеклом дальше от глаза
+        // то, что над ним ближе, — иначе руки зайдут за спину.
+        echo.sort { $0.depth < $1.depth }
+        var glass = context
+        glass.clip(to: deckTop)
+        glass.opacity = 0.15 + 0.06 * energy
+        for piece in echo {
+            piece.render(&glass)
+        }
+
+        // Отражение гаснет от предмета к зрителю: у настоящей плиты двойник
+        // виден у самых ног и растворяется на длине шага. Без этого он
+        // обрывается там, где кончается тело, и читается не отражением,
+        // а перевёрнутой копией, приклеенной снизу.
+        let fadeBounds = deckTop.boundingRect
+        context.fill(deckTop,
+                     with: .linearGradient(
+                         Gradient(stops: [
+                             .init(color: .clear, location: 0.0),
+                             .init(color: .clear, location: 0.30),
+                             .init(color: Color(hue: 0.034, saturation: 0.90,
+                                                brightness: 0.055).opacity(0.62),
+                                   location: 0.78),
+                             .init(color: Color(hue: 0.030, saturation: 0.92,
+                                                brightness: 0.040).opacity(0.80),
+                                   location: 1.0),
+                         ]),
+                         startPoint: CGPoint(x: fadeBounds.midX, y: fadeBounds.minY),
+                         endPoint: CGPoint(x: fadeBounds.midX, y: fadeBounds.maxY)))
+
         // Общая сортировка: без неё тела накладываются в порядке создания
         // и объём рассыпается. В списке около 320 тел — это и есть цена кадра,
         // потому что сортировка и отрисовка идут по нему целиком. Каждая новая
@@ -218,11 +277,12 @@ struct GlassStage {
     /// Гранёный борт — приём ретро: у станка, собранного из щитов, кромка
     /// ломаная, и каждый щит ловит свет по-своему. Гладкий цилиндр читается
     /// точёной деталью, гранёный — построенным.
+    @discardableResult
     private func drawPodium(_ context: inout GraphicsContext,
                             project: Solid3D.Projection,
                             radius: Double,
                             base: Double,
-                            deck: Double)
+                            deck: Double) -> Path
     {
         let podiumRadius = radius * 0.72
         let facets = 72
@@ -333,6 +393,61 @@ struct GlassStage {
                          startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
                          endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)))
 
+        // Узор в толще стекла. Настил стеклянный, а у стекла на сцене всегда
+        // есть травление: голая прозрачная плита не читается стеклом вовсе —
+        // прозрачное видно только по тому, что на нём отпечатано.
+        //
+        // Рисунок повторяет разметку венца: столько же лучей, сколько граней
+        // борта, и кольца на тех же долях радиуса, что кольца уровня в венце.
+        // Узор наугад был бы обоями; этот говорит то же, что и шкала вокруг.
+        var etch = Path()
+        for index in 0..<facets {
+            let theta = Double(index) / Double(facets) * 2 * .pi + phase
+            // Луч идёт не от самого центра: у ступицы все 72 линии сходятся
+            // в точку и дают кляксу.
+            etch.move(to: project(cos(theta) * podiumRadius * 0.30, -deck,
+                                  sin(theta) * podiumRadius * 0.30).0)
+            etch.addLine(to: project(cos(theta) * podiumRadius * 0.985, -deck,
+                                     sin(theta) * podiumRadius * 0.985).0)
+        }
+        context.blendMode = .plusLighter
+        context.stroke(etch,
+                       with: .color(Color(hue: 0.072, saturation: 0.50, brightness: 1)
+                           .opacity(0.020 + 0.030 * energy)),
+                       style: StrokeStyle(lineWidth: max(0.3, base * 0.0005)))
+
+        for ring in [0.30, 0.501, 0.708, 0.985] {
+            var circle = Path()
+            for step in 0...facets {
+                let theta = Double(step % facets) / Double(facets) * 2 * .pi + phase
+                let point = project(cos(theta) * podiumRadius * ring, -deck,
+                                    sin(theta) * podiumRadius * ring).0
+                if step == 0 { circle.move(to: point) } else { circle.addLine(to: point) }
+            }
+            circle.closeSubpath()
+            context.stroke(circle,
+                           with: .color(Color(hue: 0.078, saturation: 0.44, brightness: 1)
+                               .opacity(0.030 + 0.045 * energy)),
+                           style: StrokeStyle(lineWidth: max(0.3, base * 0.0006)))
+        }
+
+        // Косой блик по стеклу: широкая полоса отражённого света поперёк
+        // настила. У полированной плиты он есть всегда — это и есть главный
+        // признак, по которому глаз отличает стекло от матового щита.
+        context.fill(disc,
+                     with: .linearGradient(
+                         Gradient(stops: [
+                             .init(color: .clear, location: 0.0),
+                             .init(color: Color(hue: 0.080, saturation: 0.30, brightness: 1)
+                                 .opacity(0.030 + 0.045 * energy), location: 0.30),
+                             .init(color: Color(hue: 0.070, saturation: 0.44, brightness: 1)
+                                 .opacity(0.010 + 0.018 * energy), location: 0.52),
+                             .init(color: .clear, location: 0.80),
+                         ]),
+                         startPoint: CGPoint(x: bounds.minX, y: bounds.minY),
+                         endPoint: CGPoint(x: bounds.maxX, y: bounds.maxY)))
+        context.blendMode = .normal
+
         // Светящаяся кромка настила — то, по чему читается верхний край.
         // На площадке её и правда пускают лентой по борту сцены, так что
         // это не украшение, а та же деталь, что и всё остальное на помосте.
@@ -348,6 +463,7 @@ struct GlassStage {
                            .opacity(0.07 + 0.10 * energy)),
                        style: StrokeStyle(lineWidth: max(0.5, base * 0.0011)))
         context.blendMode = .normal
+        return disc
     }
 
     // MARK: - Общая анатомия
@@ -2302,11 +2418,40 @@ struct GlassStage {
                 centre: eye, radius: stand * 0.0155, material: lens, project: project,
                 lineWidth: line, dish: 0.30, squash: 0.72))
 
+            // Ореол вокруг линзы: пятно света в дыму у самого прибора. По нему
+            // работа лампы видна даже тогда, когда её луч уходит за фигуры, —
+            // а на кадре голова прибора всего в десяток пикселей, и одной
+            // сменой тона стекла разгорание там не прочитать.
+            pieces.append(Solid3D.Piece(depth: project(eye.0, eye.1, eye.2).2 - 0.002) { ctx in
+                let point = project(eye.0, eye.1, eye.2)
+                let halo = stand * 0.085 * point.1 * (0.55 + 0.75 * burn)
+                guard halo > 0.5 else { return }
+                ctx.blendMode = .plusLighter
+                ctx.fill(
+                    Path(ellipseIn: CGRect(x: point.0.x - halo, y: point.0.y - halo,
+                                           width: halo * 2, height: halo * 2)),
+                    with: .radialGradient(
+                        Gradient(stops: [
+                            .init(color: Color(hue: 0.095, saturation: 0.34, brightness: 1)
+                                .opacity(0.12 + 0.46 * burn), location: 0),
+                            .init(color: Color(hue: 0.075, saturation: 0.62, brightness: 1)
+                                .opacity(0.05 + 0.20 * burn), location: 0.38),
+                            .init(color: .clear, location: 1),
+                        ]),
+                        center: point.0, startRadius: 0, endRadius: halo))
+                ctx.blendMode = .normal
+            })
+
+            // Луч отдан полосе целиком: постоянная доля в яркости и добавка
+            // от общей громкости держали его наполовину включённым всегда,
+            // и разгорание тонуло в этой подложке. Пятно на полу заодно
+            // раздаётся вширь — настоящий прибор на полной мощности светит
+            // не только ярче, но и шире.
             let aim = aims[index]
             pieces.append(spotBeam(from: eye,
                                    to: (aim.0 * radius, aim.1 * radius),
-                                   pool: aim.2 * radius,
-                                   burn: 0.32 + 0.42 * burn + 0.26 * energy,
+                                   pool: aim.2 * radius * (0.78 + 0.38 * burn),
+                                   burn: 0.10 + 0.90 * burn,
                                    project: project))
         }
 
@@ -2372,8 +2517,8 @@ struct GlassStage {
                 cone,
                 with: .linearGradient(
                     Gradient(stops: [
-                        .init(color: hot.opacity(0.078 * burn), location: 0),
-                        .init(color: warm.opacity(0.036 * burn), location: 0.55),
+                        .init(color: hot.opacity(0.185 * burn), location: 0),
+                        .init(color: warm.opacity(0.082 * burn), location: 0.55),
                         .init(color: .clear, location: 1),
                     ]),
                     startPoint: head.0, endPoint: hit.0))
@@ -2381,8 +2526,8 @@ struct GlassStage {
                 disc,
                 with: .radialGradient(
                     Gradient(stops: [
-                        .init(color: hot.opacity(0.125 * burn), location: 0),
-                        .init(color: warm.opacity(0.058 * burn), location: 0.44),
+                        .init(color: hot.opacity(0.330 * burn), location: 0),
+                        .init(color: warm.opacity(0.145 * burn), location: 0.44),
                         .init(color: .clear, location: 0.82),
                     ]),
                     center: hit.0, startRadius: 0, endRadius: poolRadius))
