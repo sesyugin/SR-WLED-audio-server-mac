@@ -298,31 +298,40 @@ struct MainWindow: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if model.isFirstRun { welcomeBlock }
-
-                    switch tab {
-                    case .send:
-                        destinationSection
-                        devicesSection
-                    case .look:
-                        appearanceSection
-                    case .health:
-                        if case .noSignal = model.state { permissionBlock }
-                        if case .failed = model.state { failureBlock }
-                        diagnosticsSection
-                        if let reason = model.lastRestartReason {
-                            Label(restartNote(reason),
-                                  systemImage: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    case .app:
-                        behaviourSection
-                        processingSection
-                    }
+                    tabContent
                 }
                 .padding(18)
             }
+        }
+    }
+
+    /// Содержимое открытой вкладки.
+    ///
+    /// Вынесено из тела панели отдельным свойством не для порядка: `switch`
+    /// на четыре ветки внутри `VStack` — это одно исполинское выражение, и
+    /// компилятор на нём захлёбывался, отказываясь вывести типы за отведённое
+    /// время. Отдельное свойство ставит ему границу.
+    @ViewBuilder
+    private var tabContent: some View {
+        switch tab {
+        case .send:
+            destinationSection
+            devicesSection
+        case .look:
+            appearanceSection
+        case .health:
+            if case .noSignal = model.state { permissionBlock }
+            if case .failed = model.state { failureBlock }
+            diagnosticsSection
+            if let reason = model.lastRestartReason {
+                Label(restartNote(reason), systemImage: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .app:
+            behaviourSection
+            processingSection
         }
     }
 

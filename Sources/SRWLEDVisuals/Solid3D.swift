@@ -139,7 +139,7 @@ struct Solid3D {
     ///
     /// Порог низкий намеренно: на полутора пикселях перепад ещё виден глазу,
     /// на одном — уже нет.
-    static let detailThreshold: Double = 1.25
+    static let detailThreshold: CGFloat = 1.25
 
     // MARK: - Сфера
 
@@ -150,7 +150,7 @@ struct Solid3D {
                        lineWidth: Double) -> Piece
     {
         let projected = project(centre.0, centre.1, centre.2)
-        let screenRadius = radius * projected.1
+        let screenRadius: CGFloat = CGFloat(radius * projected.1)
         let point = projected.0
 
         return Piece(depth: projected.2) { context in
@@ -263,7 +263,7 @@ struct Solid3D {
         let a = project(from.0, from.1, from.2)
         let b = project(to.0, to.1, to.2)
         let scale = (a.1 + b.1) / 2
-        let screenRadius = radius * scale
+        let screenRadius: CGFloat = CGFloat(radius * scale)
 
         // Та же мера глухости, что у ящика и цилиндра. Трубки фермы и стоек
         // просвечивали друг сквозь друга, и вся обвязка сцены читалась ворохом
@@ -388,7 +388,7 @@ struct Solid3D {
                          squash: Double = 1.0) -> Piece
     {
         let projected = project(centre.0, centre.1, centre.2)
-        let screenRadius = radius * projected.1
+        let screenRadius: CGFloat = CGFloat(radius * projected.1)
         // Глухость — как у ящика и цилиндра: пластик барабана и диффузор
         // динамика показывали сквозь себя заднюю стенку корпуса, на которую
         // они надеты.
@@ -504,7 +504,7 @@ struct Solid3D {
         let dense = min(1, max(0, (material.opacity - 1) / 0.3))
 
         return Piece(depth: (top.2 + bottom.2) / 2) { context in
-            let screenRadius = radius * top.1
+            let screenRadius: CGFloat = CGFloat(radius * top.1)
             guard screenRadius > 0.4 else { return }
             let capHeight = screenRadius * max(0.12, min(1, flatten))
 
@@ -795,7 +795,7 @@ struct Solid3D {
                               drift: Double = 0) -> Piece
     {
         let projected = project(position.0, 0, position.1)
-        let screenRadius = radius * projected.1
+        let screenRadius: CGFloat = CGFloat(radius * projected.1)
         let shift = CGPoint(x: projected.0.x - lightScreen.dx * screenRadius * drift,
                             y: projected.0.y - lightScreen.dy * screenRadius * drift)
         // Сплюснутость пятна берётся у самой проекции, а не назначается числом.
