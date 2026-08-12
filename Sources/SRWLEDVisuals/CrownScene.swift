@@ -45,9 +45,16 @@ public struct CrownScene: View {
             }
         }
         .background(
-            LinearGradient(colors: [Color(red: 0.036, green: 0.032, blue: 0.062),
-                                    Color(red: 0.016, green: 0.014, blue: 0.028)],
-                           startPoint: .top, endPoint: .bottom))
+            // Многоступенчатый градиент вместо двух точек: сверху холодная ночь,
+            // к середине уходит в фиолетовый, у плоскости теплеет. Две точки
+            // давали ровную заливку без глубины.
+            LinearGradient(stops: [
+                .init(color: Color(red: 0.020, green: 0.020, blue: 0.046), location: 0.00),
+                .init(color: Color(red: 0.045, green: 0.032, blue: 0.078), location: 0.34),
+                .init(color: Color(red: 0.072, green: 0.038, blue: 0.076), location: 0.58),
+                .init(color: Color(red: 0.062, green: 0.030, blue: 0.048), location: 0.78),
+                .init(color: Color(red: 0.018, green: 0.012, blue: 0.024), location: 1.00),
+            ], startPoint: .top, endPoint: .bottom))
     }
 
     /// Значение спектра по углу: зеркальная симметрия, чтобы венец читался
@@ -341,11 +348,13 @@ public struct CrownScene: View {
             let leadLeftX = cx - tangentX * leadInset, leadLeftZ = cz - tangentZ * leadInset
             let leadRightX = cx + tangentX * leadInset, leadRightZ = cz + tangentZ * leadInset
 
+            // Вводы начинаются ровно на дне колбы: раньше нить стартовала выше
+            // и висела в стекле, что и ломало вид лампы.
             let footLeft = project(leadLeftX, -bulbBottom, leadLeftZ)
             let footRight = project(leadRightX, -bulbBottom, leadRightZ)
-            let arcLeft = project(leadLeftX, -(bulbBottom + bulbHeight * 0.55), leadLeftZ)
-            let arcRight = project(leadRightX, -(bulbBottom + bulbHeight * 0.55), leadRightZ)
-            let arcTop = project(cx, -(bulbBottom + bulbHeight * 0.74), cz)
+            let arcLeft = project(leadLeftX, -(bulbBottom + bulbHeight * 0.62), leadLeftZ)
+            let arcRight = project(leadRightX, -(bulbBottom + bulbHeight * 0.62), leadRightZ)
+            let arcTop = project(cx, -(bulbBottom + bulbHeight * 0.84), cz)
 
             var filament = Path()
             filament.move(to: footLeft.0)
@@ -375,7 +384,22 @@ public struct CrownScene: View {
 
         lamps.sort { $0.depth > $1.depth }
 
+        // Сцена стоит в центре, поэтому дальние лампы рисуются до неё, ближние —
+        // после. Иначе передний ряд ламп окажется под фигурами.
+        let stage = GlassStage(palette: palette,
+                               energy: energy,
+                               bass: smoother.values.prefix(3).max() ?? 0,
+                               air: smoother.values.suffix(4).max() ?? 0,
+                               beat: flash)
+        var stageDrawn = false
+
         for lamp in lamps {
+            if !stageDrawn && lamp.depth <= 0 {
+                stage.draw(&context, project: project, radius: radius,
+                           maxHeight: maxHeight, base: base)
+                stageDrawn = true
+            }
+
             let depthFade = max(0, min(1, (lamp.nearness - 0.72) / 0.55))
             let intensity = (0.10 + 0.90 * lamp.value) * (0.30 + 0.70 * depthFade)
 
@@ -429,6 +453,11 @@ public struct CrownScene: View {
             let tz = y * sinTilt + z * cosTilt
             let scale = focal / max(tz + distance, 1)
             return (CGPoint(x: centre.x + x * scale, y: centre.y + ty * scale), scale, tz)
+        }
+
+        if !stageDrawn {
+            stage.draw(&context, project: project, radius: radius,
+                       maxHeight: maxHeight, base: base)
         }
 
         drawLevelScale(&context, project: projectStatic, radius: radius,
