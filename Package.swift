@@ -33,7 +33,7 @@ let package = Package(
         // только с Xcode, а проект должен проверяться на голых Command Line Tools.
         // Ни одна проверка не трогает аудиоустройства и не шлёт пакеты в реальную сеть.
         .executableTarget(name: "SRWLEDTests",
-                          dependencies: ["SRWLEDCore"],
+                          dependencies: ["SRWLEDCore", "SRWLEDVisuals"],
                           path: "Sources/SRWLEDTests"),
     ]
 )

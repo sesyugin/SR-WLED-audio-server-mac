@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SRWLEDCore
+import SRWLEDVisuals
 
 /// Переводы против жёстких рамок интерфейса.
 ///
@@ -107,6 +108,19 @@ func runLayoutTests(_ t: TestRunner) {
                   .devices, .behaviour, .processing],
                  within: sidebar, size: 10, weight: .semibold, uppercase: true,
                  what: "MainWindow — заголовки разделов")
+        }
+
+        t.test("Ссылка на репозиторий никуда не делась") { t in
+            // Заглушка «https://github.com/» на вид неотличима от рабочей ссылки
+            // и однажды едва не уехала в релиз: кнопка в окне «О программе»
+            // открывалась, только вела на главную страницу GitHub.
+            let url = Brand.repository
+            t.expect(url.hasPrefix("https://"), "адрес обязан быть по https: «\(url)»")
+            let path = url.dropFirst("https://".count)
+                .split(separator: "/", omittingEmptySubsequences: true)
+            t.expect(path.count >= 3,
+                     "адрес ведёт не на репозиторий, а на «\(url)» — заглушка осталась")
+            t.expect(!url.hasSuffix("/"), "лишняя косая черта в конце: «\(url)»")
         }
     }
 }
