@@ -101,6 +101,66 @@ final class AppModel: ObservableObject {
         didSet { defaults.set(lightQuality, forKey: Keys.lightQuality) }
     }
 
+    // MARK: Обработка звука
+    //
+    // В Settings полтора десятка параметров, и до сих пор наружу торчал ровно
+    // один переключатель «как в оригинале». Он менял их все разом, и подобрать
+    // что-то под свою комнату было нечем: либо весь набор исправленного
+    // поведения, либо весь набор оригинального.
+    //
+    // Все они требуют пересборки захвата: сетка полос, окно и размер шага
+    // задаются при создании обработки. Поэтому рядом с ними живёт кнопка
+    // «применить и перезапустить», а не молчаливое применение на лету.
+
+    /// Ручная чувствительность вместо автоматической. Отрицательное значение —
+    /// «пусть регулирует само».
+    @Published var sensitivity: Double {
+        didSet { defaults.set(sensitivity, forKey: Keys.sensitivity) }
+    }
+
+    /// Порог тишины в dBFS. Ниже него кадр считается пустым.
+    @Published var silenceDB: Double {
+        didSet { defaults.set(silenceDB, forKey: Keys.silenceDB) }
+    }
+
+    @Published var smoothBands: Bool {
+        didSet { defaults.set(smoothBands, forKey: Keys.smoothBands) }
+    }
+
+    @Published var wledBandGrid: Bool {
+        didSet { defaults.set(wledBandGrid, forKey: Keys.bandGrid) }
+    }
+
+    @Published var hannWindow: Bool {
+        didSet { defaults.set(hannWindow, forKey: Keys.window) }
+    }
+
+    @Published var energyAggregation: Bool {
+        didSet { defaults.set(energyAggregation, forKey: Keys.aggregation) }
+    }
+
+    @Published var stableGain: Bool {
+        didSet { defaults.set(stableGain, forKey: Keys.gain) }
+    }
+
+    /// Запускать захват сразу при открытии приложения.
+    @Published var autoStart: Bool {
+        didSet { defaults.set(autoStart, forKey: Keys.autoStart) }
+    }
+
+    /// Вернуть обработку к рекомендуемым значениям.
+    func resetProcessing() {
+        let recommended = Settings()
+        sensitivity = -1
+        silenceDB = Double(20 * log10(recommended.squelch))
+        smoothBands = recommended.bandSmoothing
+        wledBandGrid = recommended.bandLayout == .wled
+        hannWindow = recommended.window == .hann
+        energyAggregation = recommended.aggregation == .energy
+        stableGain = recommended.gainMode == .stable
+        useOriginalBehaviour = false
+    }
+
     /// Тон, которым рисовать столбики: свой или из палитры.
     var columnTint: Double? {
         columnHue < 0 ? nil : columnHue
@@ -122,6 +182,14 @@ final class AppModel: ObservableObject {
         static let columnHue = "columnHue"
         static let animation = "animationEnabled"
         static let lightQuality = "lightQuality"
+        static let sensitivity = "sensitivity"
+        static let silenceDB = "silenceDB"
+        static let smoothBands = "smoothBands"
+        static let bandGrid = "bandGrid"
+        static let window = "analysisWindow"
+        static let aggregation = "bandAggregation"
+        static let gain = "gainMode"
+        static let autoStart = "autoStart"
     }
 
     // MARK: Внутренности
@@ -182,6 +250,20 @@ final class AppModel: ObservableObject {
         columnHue = defaults.object(forKey: Keys.columnHue) as? Double ?? -1
         animationEnabled = defaults.object(forKey: Keys.animation) as? Bool ?? true
         lightQuality = defaults.bool(forKey: Keys.lightQuality)
+
+        let recommended = Settings()
+        sensitivity = defaults.object(forKey: Keys.sensitivity) as? Double ?? -1
+        silenceDB = defaults.object(forKey: Keys.silenceDB) as? Double
+            ?? Double(20 * log10(recommended.squelch))
+        smoothBands = defaults.object(forKey: Keys.smoothBands) as? Bool ?? recommended.bandSmoothing
+        wledBandGrid = defaults.object(forKey: Keys.bandGrid) as? Bool ?? true
+        hannWindow = defaults.object(forKey: Keys.window) as? Bool ?? true
+        energyAggregation = defaults.object(forKey: Keys.aggregation) as? Bool ?? true
+        stableGain = defaults.object(forKey: Keys.gain) as? Bool ?? true
+        // По умолчанию включён: до появления этого переключателя захват
+        // и так стартовал сам, и молча отнимать это у тех, кто уже
+        // привык, нельзя.
+        autoStart = defaults.object(forKey: Keys.autoStart) as? Bool ?? true
 
         // Язык: сохранённый выбор, иначе язык системы, иначе английский.
         let stored = defaults.string(forKey: Keys.language) ?? ""
@@ -271,7 +353,7 @@ final class AppModel: ObservableObject {
     /// Вызывается при появлении интерфейса. На первом запуске ничего не трогаем:
     /// человек сначала читает, зачем нужны разрешения, и жмёт «Запустить» сам.
     func startAutomaticallyIfReady() {
-        guard !isFirstRun, !isRunning else { return }
+        guard autoStart, !isFirstRun, !isRunning else { return }
         start()
     }
 
@@ -289,6 +371,25 @@ final class AppModel: ObservableObject {
         settings.sendMode = sendMode
         settings.targetIPList = [targets]
         settings.broadcastIPList = [targets]
+
+        // Набор «как в оригинале» задаёт все параметры разом и правится целиком,
+        // поэтому поштучные переключатели поверх него не применяются: иначе
+        // получилась бы смесь, которой нет ни в одной из двух версий, и сравнить
+        // бок о бок стало бы не с чем.
+        guard !useOriginalBehaviour else { return settings }
+
+        settings.bandLayout = wledBandGrid ? .wled : .custom
+        settings.window = hannWindow ? .hann : .flatTop
+        settings.aggregation = energyAggregation ? .energy : .maximum
+        settings.gainMode = stableGain ? .stable : .original
+        settings.bandSmoothing = smoothBands
+        settings.squelch = Float(pow(10, silenceDB / 20))
+        if sensitivity >= 0 {
+            settings.manualGain = true
+            // Ползунок 0…1 ложится на опору АРУ обратной величиной: чем выше
+            // чувствительность, тем ниже опора, к которой приводится сигнал.
+            settings.manualGainReference = Float(4 + (1 - sensitivity) * 250)
+        }
         return settings
     }
 
@@ -496,6 +597,10 @@ final class AppModel: ObservableObject {
             packetsPerSecond: packetsPerSecond,
             networkError: sender.lastError,
             bandsAlive: bands.contains { $0 > 0 },
+            strips: Diagnostics.StripSummary(
+                found: discoveredDevices.count,
+                receiving: discoveredDevices.filter { $0.status?.isReceivingFromUs == true }.count,
+                asked: discoveredDevices.contains { $0.status != nil }),
             language: language)
         if fresh != diagnostics { diagnostics = fresh }
     }

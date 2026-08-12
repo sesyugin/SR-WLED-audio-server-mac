@@ -39,6 +39,21 @@ public struct DeviceStatus: Sendable, Equatable {
     public var isReceivingFromUs: Bool {
         syncState == .receivingV2 || syncState == .receivingV1
     }
+
+    /// Ключ перевода для состояния. Сырые значения перечисления написаны
+    /// по-русски — они годятся для отладки, но в интерфейс их пускать нельзя:
+    /// на пятнадцати языках из шестнадцати это была бы кириллица посреди
+    /// своей строки.
+    public var key: S {
+        switch syncState {
+        case .receivingV2, .receivingV1: return .deviceReceiving
+        case .idle: return .deviceIdle
+        case .sending: return .deviceSending
+        case .disabled: return .deviceDisabled
+        case .noUsermod: return .deviceNoUsermod
+        case .unknown: return .deviceUnknown
+        }
+    }
 }
 
 /// Автопоиск лент с WLED и опрос их состояния.

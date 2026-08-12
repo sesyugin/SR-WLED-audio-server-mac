@@ -38,6 +38,21 @@ public struct Diagnostics: Sendable, Equatable {
         }
     }
 
+    /// Что известно про ленты в сети. Собирается автопоиском и опросом
+    /// `/json/info`; пока не спрашивали — `asked` ложно, и строка честно
+    /// говорит, что проверки не было, вместо того чтобы гадать.
+    public struct StripSummary: Sendable, Equatable {
+        public var found: Int
+        public var receiving: Int
+        public var asked: Bool
+
+        public init(found: Int = 0, receiving: Int = 0, asked: Bool = false) {
+            self.found = found
+            self.receiving = receiving
+            self.asked = asked
+        }
+    }
+
     public var lines: [Line]
 
     public init(lines: [Line]) {
@@ -77,6 +92,7 @@ public struct Diagnostics: Sendable, Equatable {
                             packetsPerSecond: Int,
                             networkError: String?,
                             bandsAlive: Bool,
+                            strips: StripSummary = StripSummary(),
                             language: Language = .english) -> Diagnostics
     {
         func text(_ key: S, _ values: [String] = []) -> String {
@@ -145,11 +161,34 @@ public struct Diagnostics: Sendable, Equatable {
                                            ["\(packetsPerSecond)", "\(endpoints.count)"])))
         }
 
-        // 4. Ленты — заполняется опросом устройств, пока их не спрашивали
-        lines.append(Line(title: text(.diagDevices),
-                          verdict: .unknown,
-                          detail: text(.diagDevicesUnchecked),
-                          advice: text(.diagDevicesAdvice)))
+        // 4. Ленты. Это единственная строка, которая отвечает на вопрос
+        // «дошло ли», а не «ушло ли»: прошивка выставляет в /json/info суффикс
+        // версии, только когда действительно принимает наш поток. Пока строка
+        // говорила «не проверялось» при уже работающем автопоиске, самый
+        // ценный ответ диагностики оставался незаданным.
+        if !strips.asked {
+            lines.append(Line(title: text(.diagDevices),
+                              verdict: .unknown,
+                              detail: text(.diagDevicesUnchecked),
+                              advice: text(.diagDevicesAdvice)))
+        } else if strips.found == 0 {
+            lines.append(Line(title: text(.diagDevices),
+                              verdict: .warning,
+                              detail: text(.noDevicesFound),
+                              advice: text(.diagDevicesAdvice)))
+        } else if strips.receiving > 0 {
+            lines.append(Line(title: text(.diagDevices),
+                              verdict: strips.receiving == strips.found ? .ok : .warning,
+                              detail: text(.stripsReceiving,
+                                           ["\(strips.receiving)", "\(strips.found)"]),
+                              advice: strips.receiving == strips.found
+                                  ? "" : text(.stripsAdvice)))
+        } else {
+            lines.append(Line(title: text(.diagDevices),
+                              verdict: .failure,
+                              detail: text(.stripsNoneReceiving, ["\(strips.found)"]),
+                              advice: text(.stripsAdvice)))
+        }
 
         return Diagnostics(lines: lines)
     }

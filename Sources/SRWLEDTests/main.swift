@@ -13,6 +13,8 @@ runDynamicsTests(runner)
 runStoreTests(runner)
 runDiscoveryTests(runner)
 runFirmwareAgreementTests(runner)
+runStripDiagnosticsTests(runner)
+runProcessingSettingsTests(runner)
 runLocalizationTests(runner)
 runDiagnosticsLanguageTests(runner)
 

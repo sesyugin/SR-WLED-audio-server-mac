@@ -356,9 +356,9 @@ struct MainWindow: View {
 
     private func deviceStatusText(_ device: DiscoveredDevice) -> String {
         guard let status = device.status else { return model.localized(.deviceUnknown) }
-        if status.isReceivingFromUs { return model.localized(.deviceReceiving) }
-        if status.syncState == .idle { return model.localized(.deviceIdle) }
-        return status.syncState.rawValue
+        // Через ключ, а не через сырое значение перечисления: у SyncState они
+        // написаны по-русски и годятся для отладки, но не для интерфейса.
+        return model.localized(status.key)
     }
 
     private var destinationSection: some View {
@@ -492,6 +492,12 @@ struct MainWindow: View {
         section(model.localized(.behaviour)) {
             Toggle(model.localized(.launchAtLogin), isOn: $model.launchAtLogin)
                 .font(.system(size: 11))
+            Toggle(model.localized(.autoStart), isOn: $model.autoStart)
+                .font(.system(size: 11))
+            Text(model.localized(.autoStartNote))
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if let problem = model.loginItemProblem {
                 Text(problem)
                     .font(.system(size: 10))
@@ -524,9 +530,103 @@ struct MainWindow: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            // Набор «как в оригинале» задаёт все параметры разом, и поштучные
+            // переключатели поверх него не применяются. Показывать их при
+            // включённом наборе — обманывать: крутится, а не действует.
+            if !model.useOriginalBehaviour {
+                Divider().padding(.vertical, 2)
+
+                slider(model.localized(.sensitivity),
+                       note: model.localized(.sensitivityNote),
+                       value: $model.sensitivity,
+                       range: 0...1,
+                       auto: true,
+                       format: { "\(Int($0 * 100))%" })
+
+                slider(model.localized(.silenceThreshold),
+                       note: model.localized(.silenceNote),
+                       value: $model.silenceDB,
+                       range: (-90)...(-30),
+                       auto: false,
+                       format: { "\(Int($0)) dBFS" })
+
+                Toggle(model.localized(.smoothing), isOn: $model.smoothBands)
+                    .font(.system(size: 11))
+
+                choice(model.localized(.bandGrid), on: $model.wledBandGrid,
+                       yes: "WLED", no: "40–10000 Hz", note: model.localized(.gridNote))
+                choice(model.localized(.windowKind), on: $model.hannWindow,
+                       yes: "Hann", no: "FlatTop")
+                choice(model.localized(.aggregation), on: $model.energyAggregation,
+                       yes: "RMS", no: "Max")
+                choice(model.localized(.agc), on: $model.stableGain,
+                       yes: "Stable", no: "Original")
+
+                Button(model.localized(.resetDefaults)) { model.resetProcessing() }
+                    .font(.system(size: 11))
+            }
+
             Button(model.localized(.applyRestart)) { model.restart() }
                 .disabled(!model.isRunning)
                 .font(.system(size: 11))
+        }
+    }
+
+    /// Ползунок с подписью, значением и — если параметр это допускает —
+    /// состоянием «пусть решает само». Отрицательная величина и есть это
+    /// состояние: отдельный переключатель рядом с каждым ползунком удвоил бы
+    /// число органов в разделе, ничего не добавив.
+    private func slider(_ title: String, note: String,
+                        value: Binding<Double>,
+                        range: ClosedRange<Double>,
+                        auto: Bool,
+                        format: @escaping (Double) -> String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(title).font(.system(size: 11))
+                Spacer()
+                Text(auto && value.wrappedValue < 0
+                     ? "auto"
+                     : format(max(range.lowerBound, value.wrappedValue)))
+                    .font(.system(size: 10))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                Slider(value: Binding(get: { max(range.lowerBound, value.wrappedValue) },
+                                      set: { value.wrappedValue = $0 }),
+                       in: range)
+                if auto {
+                    Button("auto") { value.wrappedValue = -1 }
+                        .font(.system(size: 10))
+                        .disabled(value.wrappedValue < 0)
+                }
+            }
+            Text(note)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Выбор из двух вариантов. Названия вариантов намеренно не переводятся:
+    /// Hann, FlatTop, RMS — имена собственные, и в любой стране их пишут так же.
+    private func choice(_ title: String, on: Binding<Bool>,
+                        yes: String, no: String, note: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.system(size: 11))
+            Picker("", selection: on) {
+                Text(yes).tag(true)
+                Text(no).tag(false)
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            if let note {
+                Text(note)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

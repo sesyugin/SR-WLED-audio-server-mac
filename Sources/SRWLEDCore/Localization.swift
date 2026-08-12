@@ -107,6 +107,10 @@ public enum S: String, CaseIterable, Sendable {
     case sensitivity, silenceThreshold, smoothing, bandGrid, windowKind
     case aggregation, agc, resetDefaults, autoStart, autoStartNote
     case sensitivityNote, silenceNote, gridNote
+
+    // Ленты
+    case deviceSending, deviceDisabled, deviceNoUsermod
+    case stripsReceiving, stripsNoneReceiving, stripsAdvice
 }
 
 /// Переводы. Английский — опорный: если ключа нет в другом языке, берётся он.
@@ -200,6 +204,11 @@ public enum L10n {
             .sensitivityNote: "Manual gain instead of automatic. Useful when the strips breathe on quiet passages.",
             .silenceNote: "Below this level a frame counts as empty and the packet fades out.",
             .gridNote: "WLED — the table baked into the firmware, effects were drawn for it.",
+            .deviceSending: "transmitting itself", .deviceDisabled: "sync switched off",
+            .deviceNoUsermod: "audio module not built in",
+            .stripsReceiving: "%@ of %@ receiving from us",
+            .stripsNoneReceiving: "found %@, none receiving",
+            .stripsAdvice: "On the strip: Sync → Audio Sync → Receive",
         ],
 
         .russian: [
@@ -264,6 +273,11 @@ public enum L10n {
             .sensitivityNote: "Ручное усиление вместо автоматического. Нужно, когда лента дышит на тихих местах.",
             .silenceNote: "Ниже этого уровня кадр считается пустым и пакет затухает.",
             .gridNote: "WLED — таблица из самой прошивки, эффекты рисовались под неё.",
+            .deviceSending: "сама передаёт", .deviceDisabled: "синхронизация выключена",
+            .deviceNoUsermod: "звуковой модуль не собран",
+            .stripsReceiving: "принимают %@ из %@",
+            .stripsNoneReceiving: "найдено %@, ни одна не принимает",
+            .stripsAdvice: "На ленте: Sync → Audio Sync → Receive",
         ],
 
         .chinese: [
@@ -327,6 +341,11 @@ public enum L10n {
             .sensitivityNote: "手动增益替代自动增益。当灯带在安静段落忽明忽暗时有用。",
             .silenceNote: "低于此电平的帧视为空帧，数据包随之淡出。",
             .gridNote: "WLED — 固件内置的频段表，特效正是为它设计的。",
+            .deviceSending: "自身在发送", .deviceDisabled: "同步已关闭",
+            .deviceNoUsermod: "未内置音频模块",
+            .stripsReceiving: "%@ / %@ 正在接收",
+            .stripsNoneReceiving: "找到 %@，无一接收",
+            .stripsAdvice: "在灯带上：Sync → Audio Sync → Receive",
         ],
 
         .hindi: [
@@ -391,6 +410,11 @@ public enum L10n {
             .sensitivityNote: "स्वतः के बजाय मैनुअल गेन। जब शांत हिस्सों में स्ट्रिप साँस लेती हो तब उपयोगी।",
             .silenceNote: "इस स्तर से नीचे फ्रेम खाली माना जाता है और पैकेट फीका पड़ जाता है।",
             .gridNote: "WLED — फर्मवेयर की अपनी तालिका, प्रभाव उसी के लिए बने थे।",
+            .deviceSending: "स्वयं भेज रही है", .deviceDisabled: "सिंक बंद है",
+            .deviceNoUsermod: "ऑडियो मॉड्यूल शामिल नहीं",
+            .stripsReceiving: "%@ में से %@ प्राप्त कर रही हैं",
+            .stripsNoneReceiving: "%@ मिलीं, कोई प्राप्त नहीं कर रही",
+            .stripsAdvice: "स्ट्रिप पर: Sync → Audio Sync → Receive",
         ],
 
         .spanish: [
@@ -455,6 +479,11 @@ public enum L10n {
             .sensitivityNote: "Ganancia manual en vez de automática. Útil cuando las tiras respiran en los pasajes suaves.",
             .silenceNote: "Por debajo de este nivel el cuadro se considera vacío y el paquete se apaga.",
             .gridNote: "WLED — la tabla incluida en el firmware, los efectos se hicieron para ella.",
+            .deviceSending: "transmite ella misma", .deviceDisabled: "sincronización desactivada",
+            .deviceNoUsermod: "módulo de audio no incluido",
+            .stripsReceiving: "%@ de %@ reciben",
+            .stripsNoneReceiving: "encontradas %@, ninguna recibe",
+            .stripsAdvice: "En la tira: Sync → Audio Sync → Receive",
         ],
 
         .french: [
@@ -519,6 +548,11 @@ public enum L10n {
             .sensitivityNote: "Gain manuel au lieu d’automatique. Utile quand les rubans respirent dans les passages calmes.",
             .silenceNote: "Sous ce niveau la trame est vide et le paquet s’éteint.",
             .gridNote: "WLED — la table du firmware, les effets ont été dessinés pour elle.",
+            .deviceSending: "émet elle-même", .deviceDisabled: "synchronisation désactivée",
+            .deviceNoUsermod: "module audio non intégré",
+            .stripsReceiving: "%@ sur %@ reçoivent",
+            .stripsNoneReceiving: "%@ trouvés, aucun ne reçoit",
+            .stripsAdvice: "Sur le ruban : Sync → Audio Sync → Receive",
         ],
 
         .arabic: [
@@ -583,6 +617,11 @@ public enum L10n {
             .sensitivityNote: "كسب يدوي بدل التلقائي. مفيد عندما تتنفس الأشرطة في المقاطع الهادئة.",
             .silenceNote: "تحت هذا المستوى يُعد الإطار فارغًا وتخبو الحزمة.",
             .gridNote: "WLED — الجدول المدمج في البرنامج الثابت، وقد صُممت المؤثرات له.",
+            .deviceSending: "ترسل بنفسها", .deviceDisabled: "المزامنة متوقفة",
+            .deviceNoUsermod: "وحدة الصوت غير مضمّنة",
+            .stripsReceiving: "%@ من %@ تستقبل",
+            .stripsNoneReceiving: "وُجد %@، ولا واحد يستقبل",
+            .stripsAdvice: "على الشريط: Sync ← Audio Sync ← Receive",
         ],
 
         .bengali: [
@@ -647,6 +686,11 @@ public enum L10n {
             .sensitivityNote: "স্বয়ংক্রিয়ের বদলে ম্যানুয়াল গেইন। শান্ত অংশে স্ট্রিপ শ্বাস নিলে কাজে লাগে।",
             .silenceNote: "এই স্তরের নিচে ফ্রেম খালি ধরা হয় ও প্যাকেট নিভে যায়।",
             .gridNote: "WLED — ফার্মওয়্যারের নিজস্ব তালিকা, ইফেক্ট তারই জন্য আঁকা।",
+            .deviceSending: "নিজেই পাঠাচ্ছে", .deviceDisabled: "সিঙ্ক বন্ধ",
+            .deviceNoUsermod: "অডিও মডিউল নেই",
+            .stripsReceiving: "%@টির মধ্যে %@টি গ্রহণ করছে",
+            .stripsNoneReceiving: "%@টি পাওয়া গেছে, কোনোটি গ্রহণ করছে না",
+            .stripsAdvice: "স্ট্রিপে: Sync → Audio Sync → Receive",
         ],
 
         .portuguese: [
@@ -711,6 +755,11 @@ public enum L10n {
             .sensitivityNote: "Ganho manual em vez de automático. Útil quando as fitas respiram nos trechos calmos.",
             .silenceNote: "Abaixo deste nível o quadro é vazio e o pacote se apaga.",
             .gridNote: "WLED — a tabela do firmware, os efeitos foram feitos para ela.",
+            .deviceSending: "transmite ela mesma", .deviceDisabled: "sincronização desligada",
+            .deviceNoUsermod: "módulo de áudio não incluído",
+            .stripsReceiving: "%@ de %@ recebendo",
+            .stripsNoneReceiving: "encontradas %@, nenhuma recebe",
+            .stripsAdvice: "Na fita: Sync → Audio Sync → Receive",
         ],
 
         .urdu: [
@@ -775,6 +824,11 @@ public enum L10n {
             .sensitivityNote: "خودکار کی بجائے دستی گین۔ جب پُرسکون حصوں میں سٹرپ سانس لے تو مفید۔",
             .silenceNote: "اس سطح سے نیچے فریم خالی سمجھا جاتا ہے اور پیکٹ مدھم ہو جاتا ہے۔",
             .gridNote: "WLED — فرم ویئر کی اپنی جدول، ایفیکٹس اسی کے لیے بنے۔",
+            .deviceSending: "خود بھیج رہی ہے", .deviceDisabled: "سنک بند ہے",
+            .deviceNoUsermod: "آڈیو ماڈیول شامل نہیں",
+            .stripsReceiving: "%@ میں سے %@ وصول کر رہی ہیں",
+            .stripsNoneReceiving: "%@ ملیں، کوئی وصول نہیں کر رہی",
+            .stripsAdvice: "سٹرپ پر: Sync → Audio Sync → Receive",
         ],
 
         .indonesian: [
@@ -839,6 +893,11 @@ public enum L10n {
             .sensitivityNote: "Penguatan manual, bukan otomatis. Berguna saat strip bernapas di bagian tenang.",
             .silenceNote: "Di bawah level ini bingkai dianggap kosong dan paket meredup.",
             .gridNote: "WLED — tabel bawaan firmware, efek dirancang untuknya.",
+            .deviceSending: "mengirim sendiri", .deviceDisabled: "sinkronisasi mati",
+            .deviceNoUsermod: "modul audio tidak disertakan",
+            .stripsReceiving: "%@ dari %@ menerima",
+            .stripsNoneReceiving: "ditemukan %@, tidak ada yang menerima",
+            .stripsAdvice: "Di strip: Sync → Audio Sync → Receive",
         ],
 
         .german: [
@@ -903,6 +962,11 @@ public enum L10n {
             .sensitivityNote: "Manuelle statt automatischer Verstärkung. Nützlich, wenn die Streifen in leisen Passagen atmen.",
             .silenceNote: "Unter diesem Pegel gilt der Rahmen als leer und das Paket blendet aus.",
             .gridNote: "WLED — die Tabelle aus der Firmware, die Effekte wurden dafür gezeichnet.",
+            .deviceSending: "sendet selbst", .deviceDisabled: "Sync ausgeschaltet",
+            .deviceNoUsermod: "Audiomodul nicht enthalten",
+            .stripsReceiving: "%@ von %@ empfangen",
+            .stripsNoneReceiving: "%@ gefunden, keiner empfängt",
+            .stripsAdvice: "Am Streifen: Sync → Audio Sync → Receive",
         ],
 
         .ukrainian: [
@@ -967,6 +1031,11 @@ public enum L10n {
             .sensitivityNote: "Ручне підсилення замість автоматичного. Потрібне, коли стрічка дихає на тихих місцях.",
             .silenceNote: "Нижче цього рівня кадр вважається порожнім і пакет згасає.",
             .gridNote: "WLED — таблиця з самої прошивки, ефекти малювалися під неї.",
+            .deviceSending: "сама передає", .deviceDisabled: "синхронізацію вимкнено",
+            .deviceNoUsermod: "звуковий модуль не зібрано",
+            .stripsReceiving: "приймають %@ з %@",
+            .stripsNoneReceiving: "знайдено %@, жодна не приймає",
+            .stripsAdvice: "На стрічці: Sync → Audio Sync → Receive",
         ],
 
         .italian: [
@@ -1031,6 +1100,11 @@ public enum L10n {
             .sensitivityNote: "Guadagno manuale invece che automatico. Utile quando le strisce respirano nei passaggi quieti.",
             .silenceNote: "Sotto questo livello il frame è vuoto e il pacchetto sfuma.",
             .gridNote: "WLED — la tabella del firmware, gli effetti sono nati per quella.",
+            .deviceSending: "trasmette da sola", .deviceDisabled: "sincronizzazione disattivata",
+            .deviceNoUsermod: "modulo audio non incluso",
+            .stripsReceiving: "%@ su %@ ricevono",
+            .stripsNoneReceiving: "trovate %@, nessuna riceve",
+            .stripsAdvice: "Sulla striscia: Sync → Audio Sync → Receive",
         ],
 
         .swedish: [
@@ -1095,6 +1169,11 @@ public enum L10n {
             .sensitivityNote: "Manuell förstärkning i stället för automatisk. Bra när slingorna andas i tysta partier.",
             .silenceNote: "Under denna nivå räknas bildrutan som tom och paketet tonar ut.",
             .gridNote: "WLED — tabellen från firmware, effekterna ritades för den.",
+            .deviceSending: "sänder själv", .deviceDisabled: "synk avstängd",
+            .deviceNoUsermod: "ljudmodul saknas",
+            .stripsReceiving: "%@ av %@ tar emot",
+            .stripsNoneReceiving: "hittade %@, ingen tar emot",
+            .stripsAdvice: "På slingan: Sync → Audio Sync → Receive",
         ],
 
         .belarusian: [
@@ -1159,6 +1238,11 @@ public enum L10n {
             .sensitivityNote: "Ручное ўзмацненне замест аўтаматычнага. Патрэбна, калі стужка дыхае на цiхіх месцах.",
             .silenceNote: "Ніжэй за гэты ўзровень кадр лічыцца пустым і пакет згасае.",
             .gridNote: "WLED — табліца з самой прашыўкі, эфекты малявалiся пад яе.",
+            .deviceSending: "сама перадае", .deviceDisabled: "сінхранізацыя выключана",
+            .deviceNoUsermod: "гукавы модуль не сабраны",
+            .stripsReceiving: "прымаюць %@ з %@",
+            .stripsNoneReceiving: "знойдзена %@, ніводная не прымае",
+            .stripsAdvice: "На стужцы: Sync → Audio Sync → Receive",
         ],
     ]
 }
