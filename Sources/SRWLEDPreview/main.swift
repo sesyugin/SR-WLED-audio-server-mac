@@ -7,7 +7,7 @@ import SRWLEDVisuals
 
 @MainActor
 func render(name: String, bands: [Float], peaks: [Float], palette: Palette, size: CGSize) {
-    let view = WireScene(sampler: { bands }, isRunning: true, palette: palette)
+    let view = RingScene(sampler: { bands }, isRunning: true, palette: palette)
         .frame(width: size.width, height: size.height)
 
     let renderer = ImageRenderer(content: view)

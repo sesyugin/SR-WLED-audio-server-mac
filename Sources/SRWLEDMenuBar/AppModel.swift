@@ -75,6 +75,9 @@ final class AppModel: ObservableObject {
     @Published var palette: Palette {
         didSet { defaults.set(palette.rawValue, forKey: Keys.palette) }
     }
+    @Published var sceneStyle: SceneStyle {
+        didSet { defaults.set(sceneStyle.rawValue, forKey: Keys.sceneStyle) }
+    }
     @Published var language: Language {
         didSet {
             defaults.set(language.rawValue, forKey: Keys.language)
@@ -94,6 +97,7 @@ final class AppModel: ObservableObject {
         static let launched = "hasLaunchedBefore"
         static let language = "language"
         static let palette = "palette"
+        static let sceneStyle = "sceneStyle"
     }
 
     // MARK: Внутренности
@@ -143,6 +147,7 @@ final class AppModel: ObservableObject {
         isFirstRun = !defaults.bool(forKey: Keys.launched)
 
         palette = Palette(rawValue: defaults.string(forKey: Keys.palette) ?? "") ?? .amber
+        sceneStyle = SceneStyle(rawValue: defaults.string(forKey: Keys.sceneStyle) ?? "") ?? .ring
 
         // Язык: сохранённый выбор, иначе язык системы, иначе английский.
         let stored = defaults.string(forKey: Keys.language) ?? ""

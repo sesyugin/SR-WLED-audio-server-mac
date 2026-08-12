@@ -39,7 +39,7 @@ struct AboutWindow: View {
     private var header: some View {
         ZStack {
             // Живая сцена в шапке — приложение показывает себя само.
-            WireScene(sampler: { model.sampleBands() },
+            RingScene(sampler: { model.sampleBands() },
                       isRunning: model.isRunning,
                       palette: model.palette)
                 .frame(height: 170)

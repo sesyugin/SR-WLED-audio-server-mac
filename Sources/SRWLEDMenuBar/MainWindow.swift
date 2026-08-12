@@ -22,9 +22,18 @@ struct MainWindow: View {
 
     private var stage: some View {
         ZStack {
-            WireScene(sampler: { model.sampleBands() },
-                      isRunning: model.isRunning,
-                      palette: model.palette)
+            Group {
+                switch model.sceneStyle {
+                case .ring:
+                    RingScene(sampler: { model.sampleBands() },
+                              isRunning: model.isRunning,
+                              palette: model.palette)
+                case .sphere:
+                    WireScene(sampler: { model.sampleBands() },
+                              isRunning: model.isRunning,
+                              palette: model.palette)
+                }
+            }
                 .ignoresSafeArea()
 
             VStack {
@@ -273,6 +282,14 @@ struct MainWindow: View {
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Picker("", selection: $model.sceneStyle) {
+                ForEach(SceneStyle.allCases) { style in
+                    Text(style.title).tag(style)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+
             Picker("", selection: $model.palette) {
                 ForEach(Palette.allCases) { palette in
                     Text(palette.title).tag(palette)

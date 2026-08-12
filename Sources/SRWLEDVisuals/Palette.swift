@@ -59,3 +59,21 @@ public struct SpectrumStrip: View {
         }
     }
 }
+
+
+/// Оформление сцены.
+public enum SceneStyle: String, CaseIterable, Identifiable, Sendable {
+    /// Круговой спектр вокруг диска — как в оформлении музыкальных релизов.
+    case ring
+    /// Проволочная сфера, деформируемая спектром.
+    case sphere
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .ring: return "Ring"
+        case .sphere: return "Sphere"
+        }
+    }
+}
