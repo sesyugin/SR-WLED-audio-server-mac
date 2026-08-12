@@ -264,6 +264,11 @@ public struct CrownScene: View {
 
         lamps.sort { $0.depth > $1.depth }
 
+        // Данные для лучей: макушка лампы, её накал и близость к зрителю.
+        let beamSources = lamps.map {
+            (point: $0.tip, value: $0.value, nearness: max(0.25, min(1, $0.nearness)))
+        }
+
         // Сцена стоит в центре, поэтому дальние лампы рисуются до неё, ближние —
         // после. Иначе передний ряд ламп окажется под фигурами.
         let stage = GlassStage(palette: palette,
@@ -327,6 +332,13 @@ public struct CrownScene: View {
             stage.draw(&context, project: projectStatic, radius: radius,
                        maxHeight: maxHeight, base: base)
         }
+
+        // Лучи рисуются последними и ложатся поверх фигур: свет от ламп должен
+        // падать НА сцену, а не находиться где-то рядом с ней.
+        GlassStage.beams(&context, from: beamSources,
+                         centre: projectStatic(0, -maxHeight * 0.10, 0).0,
+                         podiumRadius: radius,
+                         palette: palette, energy: energy)
 
         drawLevelScale(&context, project: projectStatic, radius: radius,
                        maxHeight: maxHeight, base: base)

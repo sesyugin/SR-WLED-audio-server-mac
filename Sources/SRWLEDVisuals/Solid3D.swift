@@ -21,22 +21,30 @@ struct Solid3D {
         var render: (inout GraphicsContext) -> Void
     }
 
-    /// Материал: холодный лёд, светящийся изнутри.
+    /// Материал: тёмно-коричневое золотое стекло.
+    ///
+    /// Тон меняется вместе с освещённостью, а не только яркость: в тени тело
+    /// уходит в глубокий коричневый, на свету разгорается до золота. Один тон
+    /// на всю поверхность давал бы плоскую крашеную деталь — именно перепад
+    /// от коричневого к золотому и читается как толща стекла.
     struct Material {
-        var hue: Double = 0.545
-        var saturation: Double = 0.30
+        /// Тон в глубокой тени.
+        var deepHue: Double = 0.055
+        /// Тон на свету.
+        var liteHue: Double = 0.115
+        var saturation: Double = 0.85
         /// Насколько тело раскалено изнутри: от этого зависит и свечение, и блик.
         var glow: Double = 0.3
         /// Общая непрозрачность тела.
         var opacity: Double = 0.62
 
         func colour(_ brightness: Double, _ alpha: Double) -> Color {
-            // Насыщенность почти не падает со светом: раньше освещённые места
-            // обесцвечивались, и лёд читался серым пластиком. У настоящего льда
-            // светлые участки остаются голубыми, белеет только блик.
-            Color(hue: hue,
-                  saturation: max(0, saturation * (1 - brightness * 0.18)),
-                  brightness: min(1, 0.55 + 0.45 * brightness))
+            let level = max(0, min(1, brightness))
+            return Color(hue: deepHue + (liteHue - deepHue) * level,
+                         // К свету насыщенность падает мягко: золото светлеет,
+                         // но не выцветает в белый — белым остаётся только блик.
+                         saturation: saturation * (1 - level * 0.42),
+                         brightness: 0.16 + 0.84 * pow(level, 0.85))
                 .opacity(alpha * opacity)
         }
     }
@@ -170,6 +178,132 @@ struct Solid3D {
                                ]),
                                startPoint: litPoint, endPoint: darkPoint),
                            style: StrokeStyle(lineWidth: lineWidth, lineJoin: .round))
+        }
+    }
+
+    // MARK: - Диск в вертикальной плоскости
+
+    /// Круг, обращённый к зрителю: динамик колонки, мембрана барабана, корпус гитары.
+    /// Раньше вместо него ставились сферы, и динамики выпирали из корпуса шарами.
+    static func faceDisc(centre: (Double, Double, Double),
+                         radius: Double,
+                         material: Material,
+                         project: Projection,
+                         lineWidth: Double,
+                         dish: Double = 0.55,
+                         squash: Double = 1.0) -> Piece
+    {
+        let projected = project(centre.0, centre.1, centre.2)
+        let screenRadius = radius * projected.1
+
+        return Piece(depth: projected.2 - 0.0001) { context in
+            guard screenRadius > 0.3 else { return }
+            let rect = CGRect(x: projected.0.x - screenRadius,
+                              y: projected.0.y - screenRadius * squash,
+                              width: screenRadius * 2,
+                              height: screenRadius * 2 * squash)
+
+            // Вогнутость: свет собирается не в центре, а смещён к источнику,
+            // и к краю уходит в тень — так читается воронка динамика.
+            let lit = CGPoint(x: projected.0.x + lightScreen.dx * screenRadius * dish,
+                              y: projected.0.y + lightScreen.dy * screenRadius * dish * squash)
+
+            context.fill(Path(ellipseIn: rect),
+                         with: .radialGradient(
+                             Gradient(stops: [
+                                 .init(color: material.colour(0.95, 0.55 + 0.30 * material.glow),
+                                       location: 0.0),
+                                 .init(color: material.colour(0.45, 0.40), location: 0.55),
+                                 .init(color: material.colour(0.18, 0.34), location: 1.0),
+                             ]),
+                             center: lit, startRadius: 0, endRadius: screenRadius * 1.3))
+
+            context.stroke(Path(ellipseIn: rect),
+                           with: .color(material.colour(0.90, 0.50 + 0.25 * material.glow)),
+                           style: StrokeStyle(lineWidth: lineWidth))
+
+            // Центральный купол — мелкая деталь, по которой динамик и узнаётся.
+            let dome = screenRadius * 0.30
+            context.fill(
+                Path(ellipseIn: CGRect(x: projected.0.x - dome,
+                                       y: projected.0.y - dome * squash,
+                                       width: dome * 2, height: dome * 2 * squash)),
+                with: .radialGradient(
+                    Gradient(colors: [material.colour(1.0, 0.70 + 0.30 * material.glow),
+                                      material.colour(0.40, 0.45)]),
+                    center: CGPoint(x: projected.0.x + lightScreen.dx * dome * 0.5,
+                                    y: projected.0.y + lightScreen.dy * dome * 0.5),
+                    startRadius: 0, endRadius: dome * 1.4))
+        }
+    }
+
+    // MARK: - Цилиндр
+
+    /// Цилиндр с вертикальной осью: боковая поверхность плюс видимая крышка.
+    /// Нужен барабанам — коробка вместо них читается ящиком, а сфера мячом.
+    static func cylinder(centre: (Double, Double, Double),
+                         radius: Double,
+                         height: Double,
+                         material: Material,
+                         project: Projection,
+                         lineWidth: Double) -> Piece
+    {
+        let top = project(centre.0, centre.1 - height / 2, centre.2)
+        let bottom = project(centre.0, centre.1 + height / 2, centre.2)
+        // Сплюснутость крышки берётся из того, насколько наклонена камера:
+        // сравниваем смещение по вертикали для точек, разнесённых по глубине.
+        let probe = project(centre.0, centre.1, centre.2 + radius)
+        let flatten = abs(probe.0.y - project(centre.0, centre.1, centre.2).0.y)
+            / max(radius * top.1, 0.001)
+
+        return Piece(depth: (top.2 + bottom.2) / 2) { context in
+            let screenRadius = radius * top.1
+            guard screenRadius > 0.4 else { return }
+            let capHeight = screenRadius * max(0.12, min(1, flatten))
+
+            // Боковая поверхность.
+            var side = Path()
+            side.move(to: CGPoint(x: top.0.x - screenRadius, y: top.0.y))
+            side.addLine(to: CGPoint(x: bottom.0.x - screenRadius, y: bottom.0.y))
+            side.addArc(center: bottom.0, radius: screenRadius,
+                        startAngle: .degrees(180), endAngle: .degrees(0), clockwise: true)
+            side.addLine(to: CGPoint(x: top.0.x + screenRadius, y: top.0.y))
+            side.addArc(center: top.0, radius: screenRadius,
+                        startAngle: .degrees(0), endAngle: .degrees(180), clockwise: true)
+            side.closeSubpath()
+
+            let lit = CGPoint(x: top.0.x + lightScreen.dx * screenRadius,
+                              y: (top.0.y + bottom.0.y) / 2)
+            let dark = CGPoint(x: top.0.x - lightScreen.dx * screenRadius * 1.4,
+                               y: (top.0.y + bottom.0.y) / 2)
+            context.fill(side,
+                         with: .linearGradient(
+                             Gradient(stops: [
+                                 .init(color: material.colour(1.0, 0.50 + 0.30 * material.glow),
+                                       location: 0.0),
+                                 .init(color: material.colour(0.60, 0.38), location: 0.5),
+                                 .init(color: material.colour(0.24, 0.28), location: 1.0),
+                             ]),
+                             startPoint: lit, endPoint: dark))
+            context.stroke(side,
+                           with: .color(material.colour(0.85, 0.42 + 0.20 * material.glow)),
+                           style: StrokeStyle(lineWidth: lineWidth, lineJoin: .round))
+
+            // Крышка: она и выдаёт цилиндр.
+            let cap = CGRect(x: top.0.x - screenRadius, y: top.0.y - capHeight,
+                             width: screenRadius * 2, height: capHeight * 2)
+            context.fill(Path(ellipseIn: cap),
+                         with: .radialGradient(
+                             Gradient(colors: [
+                                 material.colour(1.0, 0.55 + 0.30 * material.glow),
+                                 material.colour(0.55, 0.34),
+                             ]),
+                             center: CGPoint(x: cap.midX + lightScreen.dx * screenRadius * 0.4,
+                                             y: cap.midY),
+                             startRadius: 0, endRadius: screenRadius))
+            context.stroke(Path(ellipseIn: cap),
+                           with: .color(material.colour(1.0, 0.50 + 0.25 * material.glow)),
+                           style: StrokeStyle(lineWidth: lineWidth))
         }
     }
 
