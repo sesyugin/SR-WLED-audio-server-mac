@@ -270,109 +270,125 @@ struct Solid3D {
         // наложенных линий: у чёрного крашеного железа толщи нет вовсе.
         let dense = min(1, max(0, (material.opacity - 1) / 0.3))
 
+        // Отрисовка вынесена отдельной функцией не для порядка: замыкание целиком —
+        // это одно выражение, и компилятор на нём сдавался, отказываясь вывести типы
+        // за отведённое время. Отдельная функция ставит ему границу.
         return Piece(depth: (a.2 + b.2) / 2) { context in
-            guard screenRadius > 0.3 else { return }
-
-            let dx = b.0.x - a.0.x, dy = b.0.y - a.0.y
-            let length = (dx * dx + dy * dy).squareRoot()
-            guard length > 0.001 else { return }
-            // Нормаль к оси в экранных координатах — вдоль неё и идёт заливка.
-            let nx = -dy / length, ny = dx / length
-
-            if screenRadius < detailThreshold {
-                // Тонкая капсула на экране — это просто линия своей толщины.
-                var thin = Path()
-                thin.move(to: a.0)
-                thin.addLine(to: b.0)
-                context.stroke(thin,
-                               with: .color(material.colour(0.72, 0.62 + 0.24 * material.glow)),
-                               style: StrokeStyle(lineWidth: screenRadius * 2, lineCap: .round))
-                return
-            }
-
-            var path = Path()
-            path.move(to: CGPoint(x: a.0.x + nx * screenRadius, y: a.0.y + ny * screenRadius))
-            path.addLine(to: CGPoint(x: b.0.x + nx * screenRadius, y: b.0.y + ny * screenRadius))
-            path.addArc(center: b.0, radius: screenRadius,
-                        startAngle: .radians(atan2(ny, nx)),
-                        endAngle: .radians(atan2(-ny, -nx)),
-                        clockwise: true)
-            path.addLine(to: CGPoint(x: a.0.x - nx * screenRadius, y: a.0.y - ny * screenRadius))
-            path.addArc(center: a.0, radius: screenRadius,
-                        startAngle: .radians(atan2(-ny, -nx)),
-                        endAngle: .radians(atan2(ny, nx)),
-                        clockwise: true)
-            path.closeSubpath()
-
-            // Насколько ось цилиндра развёрнута к свету — от этого зависит,
-            // куда сместится светлая полоса вдоль тела.
-            let towardsLight = nx * lightScreen.dx + ny * lightScreen.dy
-            // Нормаль разворачиваем той стороной, что смотрит на свет. Иначе
-            // светотень зависит от того, каким концом задана капсула: тело,
-            // выписанное снизу вверх, освещалось с изнанки и читалось тёмной
-            // кляксой рядом с правильно освещённым соседом.
-            let facing: Double = towardsLight < 0 ? -1 : 1
-            let ux = nx * facing, uy = ny * facing
-            let shift = CGFloat(min(1, abs(towardsLight)))
-
-            let litPoint = CGPoint(x: (a.0.x + b.0.x) / 2 + ux * screenRadius * shift * 0.75,
-                                   y: (a.0.y + b.0.y) / 2 + uy * screenRadius * shift * 0.75)
-            let darkPoint = CGPoint(x: (a.0.x + b.0.x) / 2 - ux * screenRadius * 1.15,
-                                    y: (a.0.y + b.0.y) / 2 - uy * screenRadius * 1.15)
-
-            context.fill(path,
-                         with: .linearGradient(
-                             Gradient(stops: [
-                                 .init(color: material.colour(
-                                     1.0, (0.52 + 0.32 * material.glow) * (1 - dense) + dense),
-                                       location: 0.0),
-                                 .init(color: material.colour(0.66, 0.40 * (1 - dense) + dense),
-                                       location: 0.45),
-                                 .init(color: material.colour(0.21, 0.30 * (1 - dense) + 0.96 * dense),
-                                       location: 1.0),
-                             ]),
-                             startPoint: litPoint, endPoint: darkPoint))
-
-            // Края силуэта поперёк тела. Раскладка идёт ровно между ними,
-            // поэтому ноль и единица градиента приходятся на сам контур, а не
-            // на точки где-то за телом, как у заливки выше.
-            let mid = CGPoint(x: (a.0.x + b.0.x) / 2, y: (a.0.y + b.0.y) / 2)
-            let edgeLit = CGPoint(x: mid.x + ux * screenRadius, y: mid.y + uy * screenRadius)
-            let edgeDark = CGPoint(x: mid.x - ux * screenRadius, y: mid.y - uy * screenRadius)
-
-            // Толща за один проход: обе кромки светлее середины, в тени тлеет
-            // свечение изнутри, а перед теневой кромкой идёт слабая полоса
-            // отражённого света — второй блик капсулы.
-            context.blendMode = .plusLighter
-            context.fill(path,
-                         with: .linearGradient(
-                             Gradient(stops: [
-                                 .init(color: material.rim(0.62), location: 0.0),
-                                 .init(color: material.rim(0.14), location: 0.13),
-                                 .init(color: .clear, location: 0.30),
-                                 .init(color: .clear, location: 0.56),
-                                 .init(color: material.inner(0.20), location: 0.78),
-                                 .init(color: material.sheen(0.13 + 0.08 * material.glow),
-                                       location: 0.88),
-                                 .init(color: material.rim(0.40), location: 1.0),
-                             ]),
-                             startPoint: edgeLit, endPoint: edgeDark))
-            context.blendMode = .normal
-
-            // Кромка по контуру: светлая с обеих сторон и притухающая посередине.
-            // Прежде теневая сторона обводилась почти чёрным, и тело обрубалось
-            // там силуэтом — у стекла же оно с той стороны как раз просвечивает.
-            context.stroke(path,
-                           with: .linearGradient(
-                               Gradient(stops: [
-                                   .init(color: material.rim(0.70), location: 0.0),
-                                   .init(color: material.colour(0.52, 0.30), location: 0.52),
-                                   .init(color: material.rim(0.30), location: 1.0),
-                               ]),
-                               startPoint: edgeLit, endPoint: edgeDark),
-                           style: StrokeStyle(lineWidth: max(lineWidth, screenRadius * 0.10),
-                                              lineJoin: .round))
+            drawCapsule(in: &context, a: a, b: b, screenRadius: screenRadius,
+                        dense: dense, material: material, lineWidth: lineWidth)
         }
+    }
+
+    /// Тело капсулы: силуэт, светотень поперёк оси, толща и кромка.
+    private static func drawCapsule(in context: inout GraphicsContext,
+                                    a: (CGPoint, Double, Double),
+                                    b: (CGPoint, Double, Double),
+                                    screenRadius: CGFloat,
+                                    dense: Double,
+                                    material: Material,
+                                    lineWidth: Double)
+    {
+        guard screenRadius > 0.3 else { return }
+
+        let dx = b.0.x - a.0.x, dy = b.0.y - a.0.y
+        let length = (dx * dx + dy * dy).squareRoot()
+        guard length > 0.001 else { return }
+        // Нормаль к оси в экранных координатах — вдоль неё и идёт заливка.
+        let nx = -dy / length, ny = dx / length
+
+        if screenRadius < detailThreshold {
+            // Тонкая капсула на экране — это просто линия своей толщины.
+            var thin = Path()
+            thin.move(to: a.0)
+            thin.addLine(to: b.0)
+            context.stroke(thin,
+                           with: .color(material.colour(0.72, 0.62 + 0.24 * material.glow)),
+                           style: StrokeStyle(lineWidth: screenRadius * 2, lineCap: .round))
+            return
+        }
+
+        var path = Path()
+        path.move(to: CGPoint(x: a.0.x + nx * screenRadius, y: a.0.y + ny * screenRadius))
+        path.addLine(to: CGPoint(x: b.0.x + nx * screenRadius, y: b.0.y + ny * screenRadius))
+        path.addArc(center: b.0, radius: screenRadius,
+                    startAngle: .radians(atan2(ny, nx)),
+                    endAngle: .radians(atan2(-ny, -nx)),
+                    clockwise: true)
+        path.addLine(to: CGPoint(x: a.0.x - nx * screenRadius, y: a.0.y - ny * screenRadius))
+        path.addArc(center: a.0, radius: screenRadius,
+                    startAngle: .radians(atan2(-ny, -nx)),
+                    endAngle: .radians(atan2(ny, nx)),
+                    clockwise: true)
+        path.closeSubpath()
+
+        // Насколько ось цилиндра развёрнута к свету — от этого зависит,
+        // куда сместится светлая полоса вдоль тела.
+        let towardsLight = nx * lightScreen.dx + ny * lightScreen.dy
+        // Нормаль разворачиваем той стороной, что смотрит на свет. Иначе
+        // светотень зависит от того, каким концом задана капсула: тело,
+        // выписанное снизу вверх, освещалось с изнанки и читалось тёмной
+        // кляксой рядом с правильно освещённым соседом.
+        let facing: CGFloat = towardsLight < 0 ? -1 : 1
+        let ux = nx * facing, uy = ny * facing
+        let shift = CGFloat(min(1, abs(towardsLight)))
+
+        let litPoint = CGPoint(x: (a.0.x + b.0.x) / 2 + ux * screenRadius * shift * 0.75,
+                               y: (a.0.y + b.0.y) / 2 + uy * screenRadius * shift * 0.75)
+        let darkPoint = CGPoint(x: (a.0.x + b.0.x) / 2 - ux * screenRadius * 1.15,
+                                y: (a.0.y + b.0.y) / 2 - uy * screenRadius * 1.15)
+
+        context.fill(path,
+                     with: .linearGradient(
+                         Gradient(stops: [
+                             .init(color: material.colour(
+                                 1.0, (0.52 + 0.32 * material.glow) * (1 - dense) + dense),
+                                   location: 0.0),
+                             .init(color: material.colour(0.66, 0.40 * (1 - dense) + dense),
+                                   location: 0.45),
+                             .init(color: material.colour(0.21, 0.30 * (1 - dense) + 0.96 * dense),
+                                   location: 1.0),
+                         ]),
+                         startPoint: litPoint, endPoint: darkPoint))
+
+        // Края силуэта поперёк тела. Раскладка идёт ровно между ними,
+        // поэтому ноль и единица градиента приходятся на сам контур, а не
+        // на точки где-то за телом, как у заливки выше.
+        let mid = CGPoint(x: (a.0.x + b.0.x) / 2, y: (a.0.y + b.0.y) / 2)
+        let edgeLit = CGPoint(x: mid.x + ux * screenRadius, y: mid.y + uy * screenRadius)
+        let edgeDark = CGPoint(x: mid.x - ux * screenRadius, y: mid.y - uy * screenRadius)
+
+        // Толща за один проход: обе кромки светлее середины, в тени тлеет
+        // свечение изнутри, а перед теневой кромкой идёт слабая полоса
+        // отражённого света — второй блик капсулы.
+        context.blendMode = .plusLighter
+        context.fill(path,
+                     with: .linearGradient(
+                         Gradient(stops: [
+                             .init(color: material.rim(0.62), location: 0.0),
+                             .init(color: material.rim(0.14), location: 0.13),
+                             .init(color: .clear, location: 0.30),
+                             .init(color: .clear, location: 0.56),
+                             .init(color: material.inner(0.20), location: 0.78),
+                             .init(color: material.sheen(0.13 + 0.08 * material.glow),
+                                   location: 0.88),
+                             .init(color: material.rim(0.40), location: 1.0),
+                         ]),
+                         startPoint: edgeLit, endPoint: edgeDark))
+        context.blendMode = .normal
+
+        // Кромка по контуру: светлая с обеих сторон и притухающая посередине.
+        // Прежде теневая сторона обводилась почти чёрным, и тело обрубалось
+        // там силуэтом — у стекла же оно с той стороны как раз просвечивает.
+        context.stroke(path,
+                       with: .linearGradient(
+                           Gradient(stops: [
+                               .init(color: material.rim(0.70), location: 0.0),
+                               .init(color: material.colour(0.52, 0.30), location: 0.52),
+                               .init(color: material.rim(0.30), location: 1.0),
+                           ]),
+                           startPoint: edgeLit, endPoint: edgeDark),
+                       style: StrokeStyle(lineWidth: max(lineWidth, screenRadius * 0.10),
+                                          lineJoin: .round))
     }
 
     // MARK: - Диск в вертикальной плоскости

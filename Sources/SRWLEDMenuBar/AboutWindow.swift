@@ -45,17 +45,28 @@ struct AboutWindow: View {
                 .frame(height: 170)
                 .clipped()
 
-            VStack(spacing: 8) {
+            // Затемнение между сценой и надписью. Сцена ярче всего ровно
+            // посередине — там, где стоит имя, — и подпись в ней тонула:
+            // тень вокруг букв с этим не справляется, потому что спорит
+            // не с фоном, а со светом. Книзу гуще: там мелкая подпись.
+            LinearGradient(colors: [.black.opacity(0.10),
+                                    .black.opacity(0.34),
+                                    .black.opacity(0.66)],
+                           startPoint: .top, endPoint: .bottom)
+
+            VStack(spacing: 12) {
                 BrandMark()
-                    .frame(width: 92, height: 56)
-                Text(Brand.name)
-                    .font(.system(size: 30, weight: .semibold, design: .rounded))
-                    .kerning(1.5)
-                    .foregroundStyle(.white)
-                Text(Brand.tagline.uppercased())
-                    .font(.system(size: 9, weight: .semibold))
-                    .kerning(2.6)
-                    .foregroundStyle(.white.opacity(0.55))
+                    .frame(width: 92, height: 52)
+                VStack(spacing: 5) {
+                    Text(Brand.name)
+                        .font(.system(size: 30, weight: .semibold, design: .rounded))
+                        .kerning(1.5)
+                        .foregroundStyle(.white)
+                    Text(Brand.tagline.uppercased())
+                        .font(.system(size: 9, weight: .semibold))
+                        .kerning(2.6)
+                        .foregroundStyle(.white.opacity(0.72))
+                }
             }
             .shadow(color: .black.opacity(0.7), radius: 16, y: 3)
         }
