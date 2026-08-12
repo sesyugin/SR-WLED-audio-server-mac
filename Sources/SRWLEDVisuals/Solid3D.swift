@@ -78,9 +78,17 @@ struct Solid3D {
         /// стороны — четыре одинаковых банки вместо барабанов. Совсем убирать
         /// их нельзя: слабая кромка нужна и глухому телу, иначе оно теряет
         /// край на тёмном полу.
+        ///
+        /// И считается с затемнением: тёмное тело и отражает меньше. Без этого
+        /// shade притемнял только основную заливку, а слои поверх неё шли как
+        /// у светлого — на тонкой трубке кромка занимает всю её ширину, и
+        /// притемнённое железо фермы выходило светлее, чем задумано, да ещё
+        /// и обесцвеченным: у кромки с бликом свой тон, и на узком теле он
+        /// перекрывает собственный. Прожекторы читались бетонными трубами
+        /// посреди золотой сцены.
         private var addedOpacity: Double {
             let dense = min(1, max(0, (opacity - 1) / 0.3))
-            return min(1, opacity) * (1 - 0.62 * dense)
+            return min(1, opacity) * (1 - 0.62 * dense) * (0.32 + 0.68 * shade)
         }
 
         /// Кромка на просвет. У края тела луч идёт по касательной и проходит
@@ -225,6 +233,11 @@ struct Solid3D {
         let scale = (a.1 + b.1) / 2
         let screenRadius = radius * scale
 
+        // Та же мера глухости, что у ящика и цилиндра. Трубки фермы и стоек
+        // просвечивали друг сквозь друга, и вся обвязка сцены читалась ворохом
+        // наложенных линий: у чёрного крашеного железа толщи нет вовсе.
+        let dense = min(1, max(0, (material.opacity - 1) / 0.3))
+
         return Piece(depth: (a.2 + b.2) / 2) { context in
             guard screenRadius > 0.3 else { return }
 
@@ -267,10 +280,13 @@ struct Solid3D {
             context.fill(path,
                          with: .linearGradient(
                              Gradient(stops: [
-                                 .init(color: material.colour(1.0, 0.52 + 0.32 * material.glow),
+                                 .init(color: material.colour(
+                                     1.0, (0.52 + 0.32 * material.glow) * (1 - dense) + dense),
                                        location: 0.0),
-                                 .init(color: material.colour(0.66, 0.40), location: 0.45),
-                                 .init(color: material.colour(0.21, 0.30), location: 1.0),
+                                 .init(color: material.colour(0.66, 0.40 * (1 - dense) + dense),
+                                       location: 0.45),
+                                 .init(color: material.colour(0.21, 0.30 * (1 - dense) + 0.96 * dense),
+                                       location: 1.0),
                              ]),
                              startPoint: litPoint, endPoint: darkPoint))
 

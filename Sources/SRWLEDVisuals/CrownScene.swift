@@ -342,7 +342,11 @@ public struct CrownScene: View {
 
         drawLevelScale(&context, project: projectStatic, radius: radius,
                        maxHeight: maxHeight, base: base)
-        drawBaseRing(&context, project: projectStatic, radius: radius,
+        // Шкала частот вращается вместе с венцом: она размечает именно его,
+        // а не картинку. Нарисованная неподвижной проекцией, она оставалась
+        // стоять, пока столбики уезжали мимо, — и подпись «43 Гц» показывала
+        // на ту полосу, которая давно ушла в другое место круга.
+        drawBaseRing(&context, project: project, radius: radius,
                      base: base, centre: centre, hues: hues)
     }
 
@@ -443,21 +447,40 @@ public struct CrownScene: View {
             // Берём ту сторону, что ближе к зрителю.
             let first = Double(label.band) / 15 * 0.5
             let second = 1 - first
-            let candidates = [first, second].map { position -> (CGPoint, Double) in
+            let candidates = [first, second].map { position -> (CGPoint, Double, Double) in
                 let theta = position * 2 * .pi
-                let projected = project(cos(theta) * radius * 1.16, 0, sin(theta) * radius * 1.16)
-                return (projected.0, projected.2)
+                let projected = project(cos(theta) * radius * 1.20, 0, sin(theta) * radius * 1.20)
+                return (projected.0, projected.2, theta)
             }
-            let chosen = candidates[0].1 < candidates[1].1 ? candidates[0] : candidates[1]
+            let picked = candidates[0].1 < candidates[1].1 ? candidates[0] : candidates[1]
+            let chosen = (picked.0, picked.1)
+            let chosenAngle = picked.2
 
-            // Шкала статична, поэтому гасить ничего не нужно — достаточно
-            // оставить только переднюю дугу, где подписи не лезут на колонны.
-            guard chosen.0.y > centre.y - radius * 0.10 else { continue }
+            // Подписи живут только на передней дуге: на дальней они лезут
+            // на колонны и читаются мусором поверх света. Раньше тут стоял
+            // жёсткий порог, и при неподвижной шкале этого хватало — теперь
+            // она едет, и на пороге подпись просто мигала бы. Гаснет она
+            // постепенно, на длине в четверть радиуса.
+            let edge = centre.y - radius * 0.10
+            let fade = max(0, min(1, (chosen.0.y - edge) / (radius * 0.30)))
+            guard fade > 0.02 else { continue }
+
+            // Поводок от кольца к подписи: без него цифра висит в пустоте
+            // рядом с венцом, а не подписывает его засечку.
+            let leaderStart = project(cos(chosenAngle) * radius * 1.115, 0,
+                                      sin(chosenAngle) * radius * 1.115).0
+            var leader = Path()
+            leader.move(to: leaderStart)
+            leader.addLine(to: CGPoint(
+                x: leaderStart.x + (chosen.0.x - leaderStart.x) * 0.55,
+                y: leaderStart.y + (chosen.0.y - leaderStart.y) * 0.55))
+            context.stroke(leader, with: .color(.white.opacity(0.16 * fade)),
+                           style: StrokeStyle(lineWidth: max(0.4, base * 0.0006)))
 
             var text = context.resolve(
                 Text(label.text)
                     .font(.system(size: base * 0.0145, weight: .medium, design: .rounded)))
-            text.shading = .color(.white.opacity(0.30))
+            text.shading = .color(.white.opacity(0.30 * fade))
             context.draw(text, at: chosen.0, anchor: .center)
         }
     }
