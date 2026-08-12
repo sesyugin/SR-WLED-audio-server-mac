@@ -380,15 +380,32 @@ struct GlassStage {
         }
         context.blendMode = .normal
 
-        // Крышка настила поверх борта: она и закрывает дальнюю половину.
+        // Крышка настила поверх борта. Заливка глухая, без прозрачности:
+        // сквозь полупрозрачную было видно дальнюю половину обечайки — ту
+        // самую внутреннюю стенку окантовки, которой у настоящей сцены
+        // зритель не видит никогда. Настил из-за неё читался не плитой,
+        // а плёнкой, натянутой на обруч.
+        //
+        // Стекло тут глухое и полированное: свет оно не пропускает, а
+        // отражает — отражение и узор травления ложатся уже поверх этой
+        // заливки. Прозрачная плита обязана показывать то, что под ней,
+        // а под сценой ничего и нет.
         let disc = outline(deck)
         let bounds = disc.boundingRect
         context.fill(disc,
                      with: .linearGradient(
-                         Gradient(colors: [
-                             Color(hue: 0.075, saturation: 0.62, brightness: 1)
-                                 .opacity(0.030 + 0.030 * energy),
-                             Color(hue: 0.035, saturation: 0.9, brightness: 1).opacity(0.006),
+                         Gradient(stops: [
+                             // Дальний край светлее: он ближе к ферме и ловит
+                             // её свет, а передний уходит в тень к зрителю.
+                             .init(color: Color(hue: 0.045, saturation: 0.80,
+                                                brightness: 0.115 + 0.045 * energy),
+                                   location: 0.0),
+                             .init(color: Color(hue: 0.038, saturation: 0.88,
+                                                brightness: 0.080 + 0.030 * energy),
+                                   location: 0.45),
+                             .init(color: Color(hue: 0.030, saturation: 0.94,
+                                                brightness: 0.042 + 0.016 * energy),
+                                   location: 1.0),
                          ]),
                          startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
                          endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)))
