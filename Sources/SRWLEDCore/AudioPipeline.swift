@@ -198,11 +198,13 @@ public final class AudioPipeline: @unchecked Sendable {
         lock.lock()
 
         for i in buckets.indices {
-            // Потолок 254, а не 255: WLED ограничивает канал эквалайзера этим значением,
-            // и 255 у него заворачивается — яркий пик превращается в тусклый мусор.
-            packet.fftBins[i] = Self.clampToByte((buckets[i].value + offset) / span * 254,
-                                                 maximum: 254)
-            latestBands[i] = Float(packet.fftBins[i]) / 254
+            // Потолок 255 — ровно тот, что стоит в самой прошивке:
+            // `fftResult[i] = max(min((int)(currentResult+0.5f), 255), 0)`.
+            // Прежде здесь стояло 254 с пояснением, будто WLED заворачивает 255;
+            // в исходнике audio_reactive.h такого нет, и верхняя ступень канала
+            // просто не использовалась.
+            packet.fftBins[i] = Self.clampToByte((buckets[i].value + offset) / span * 255)
+            latestBands[i] = Float(packet.fftBins[i]) / 255
         }
 
         // --- уровень ---
@@ -240,11 +242,22 @@ public final class AudioPipeline: @unchecked Sendable {
                                   wledPeakValueMax)
         packet.fftMajorPeak = Self.sanitized(bucketizer.peakFrequency)
 
-        // Оригинал считает это целочисленным делением, отчего значение почти всегда 0.
-        // Здесь — как задумывалось: доля пересечений нуля, приведённая к 0..255.
-        packet.zeroCrossingCount = UInt16(Self.clampToByte(Float(zeroCrossings) / Float(frame.count) * 255))
+        // Число пересечений нуля — ровно в той мере, в какой его считает прошивка,
+        // иначе принимающая сторона получает величину в чужой шкале. В WLED-MM
+        // оно считается по пачке из 512 отсчётов и затем множится на 2/3
+        // («reduce value so it typically stays below 256»). Наше окно анализа
+        // другой длины, поэтому счёт приводится к той же пачке.
+        packet.zeroCrossingCount = Self.firmwareZeroCrossings(zeroCrossings,
+                                                              frameLength: frame.count)
 
-        packet.pressure = Self.sanitized(pow(maxAbs * 16, 2))
+        // Звуковое давление по формуле прошивки: логарифм пикового отсчёта,
+        // растянутый на 0…255, что у неё соответствует 5…105 дБ.
+        //
+        // Прежде здесь стоял квадрат амплитуды. Шкала выходила совсем другая:
+        // на тихой музыке (пик 0.1 полной шкалы) прошивка даёт около 190,
+        // а квадрат — 2.6. Эффекты, питающиеся давлением, из-за этого молчали
+        // на всём, кроме самых громких мест.
+        packet.pressure = Self.firmwarePressure(peakAmplitude: maxAbs)
 
         isSilent = false
         lock.unlock()
@@ -278,6 +291,37 @@ public final class AudioPipeline: @unchecked Sendable {
 
     private static func sanitized(_ value: Float) -> Float {
         value.isFinite ? value : 0
+    }
+
+    /// Число пересечений нуля в мере прошивки.
+    ///
+    /// В WLED-MM оно считается по окну БПФ в 512 отсчётов, а затем множится
+    /// на 2/3, чтобы обычно оставаться ниже 256. Обе поправки нужны: без первой
+    /// значение зависит от нашего размера окна, без второй оно вдвое с лишним
+    /// выше того, что прошивка присылает сама себе.
+    public static func firmwareZeroCrossings(_ count: Int, frameLength: Int) -> UInt16 {
+        guard frameLength > 0 else { return 0 }
+        let perBatch = Double(count) * 512.0 / Double(frameLength)
+        let reduced = (perBatch * 2 / 3).rounded()
+        return UInt16(min(max(reduced, 0), 65535))
+    }
+
+    /// Звуковое давление по формуле `estimatePressure()` из прошивки.
+    ///
+    /// Границы взяты оттуда же: ниже 2.3 единиц шкалы int16 — ноль, выше
+    /// 32767−6144 — потолок 255, между ними логарифм. Наш отсчёт — число
+    /// с плавающей точкой в −1…1, поэтому приводится к той же шкале.
+    public static func firmwarePressure(peakAmplitude: Float) -> Float {
+        guard peakAmplitude.isFinite, peakAmplitude > 0 else { return 0 }
+        let sample = Double(peakAmplitude) * 32768.0
+        let sampleMin = 2.3
+        let sampleMax = 32767.0 - 6144.0
+        if sample <= sampleMin { return 0 }
+        if sample >= sampleMax { return 255 }
+        let logMin = log(sampleMin)
+        let logMax = log(sampleMax)
+        let scaled = (log(sample) - logMin) / (logMax - logMin)
+        return Float(min(max(256.0 * scaled, 0), 255))
     }
 
     /// Громкость кадра в диапазоне 0…255, равномерно по децибелам.

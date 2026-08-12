@@ -25,7 +25,7 @@ func runPipelineTests(_ t: TestRunner) {
         var settings = Settings()
         settings.fftValueScale = .squareRoot
 
-        t.test("Громкий сигнал не выводит полосы за 254") { t in
+        t.test("Громкий сигнал укладывается в байт канала") { t in
             guard let pipeline = AudioPipeline(settings: settings, sampleRate: sampleRate) else {
                 t.expect(false, "не удалось создать обработку"); return
             }
@@ -38,8 +38,12 @@ func runPipelineTests(_ t: TestRunner) {
 
             let packet = pipeline.currentPacket()
             let loudest = packet.fftBins.max() ?? 0
-            t.expect(loudest <= 254,
-                     "максимальная полоса \(loudest), а WLED заворачивает всё выше 254")
+            // Потолок 255 — тот же, что в самой прошивке:
+            // fftResult[i] = max(min((int)(currentResult+0.5f), 255), 0).
+            // Прежде здесь стояло 254: считалось, будто WLED заворачивает 255.
+            // В исходнике audio_reactive.h такого нет, и верхняя ступень
+            // канала просто не использовалась.
+            t.expect(loudest <= 255, "максимальная полоса \(loudest) вышла за байт")
             t.expect(loudest > 0, "на громком синусе полосы обязаны ожить")
         }
 

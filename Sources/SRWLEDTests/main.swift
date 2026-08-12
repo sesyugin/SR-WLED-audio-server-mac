@@ -12,6 +12,7 @@ runCorrectnessTests(runner)
 runDynamicsTests(runner)
 runStoreTests(runner)
 runDiscoveryTests(runner)
+runFirmwareAgreementTests(runner)
 runLocalizationTests(runner)
 runDiagnosticsLanguageTests(runner)
 

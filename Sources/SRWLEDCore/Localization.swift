@@ -102,6 +102,11 @@ public enum S: String, CaseIterable, Sendable {
     // Управление поверх сцены
     case columnColour, animationOn, animationOff, quality, qualityFull, qualityLight
     case resetColour, tabLook, fromPalette, animationOffNote
+
+    // Обработка звука
+    case sensitivity, silenceThreshold, smoothing, bandGrid, windowKind
+    case aggregation, agc, resetDefaults, autoStart, autoStartNote
+    case sensitivityNote, silenceNote, gridNote
 }
 
 /// Переводы. Английский — опорный: если ключа нет в другом языке, берётся он.
@@ -187,6 +192,14 @@ public enum L10n {
             .resetColour: "Reset",
             .tabLook: "Look", .fromPalette: "from palette",
             .animationOffNote: "The scene is not drawn. Packets keep going to the strips.",
+            .sensitivity: "Sensitivity", .silenceThreshold: "Silence threshold",
+            .smoothing: "Smoothing", .bandGrid: "Band grid", .windowKind: "Analysis window",
+            .aggregation: "Band folding", .agc: "Auto gain",
+            .resetDefaults: "Restore defaults", .autoStart: "Start capture on launch",
+            .autoStartNote: "The app starts sending as soon as it opens.",
+            .sensitivityNote: "Manual gain instead of automatic. Useful when the strips breathe on quiet passages.",
+            .silenceNote: "Below this level a frame counts as empty and the packet fades out.",
+            .gridNote: "WLED — the table baked into the firmware, effects were drawn for it.",
         ],
 
         .russian: [
@@ -243,6 +256,14 @@ public enum L10n {
             .resetColour: "Сбросить",
             .tabLook: "Вид", .fromPalette: "из палитры",
             .animationOffNote: "Сцена не рисуется. Пакеты продолжают уходить на ленты.",
+            .sensitivity: "Чувствительность", .silenceThreshold: "Порог тишины",
+            .smoothing: "Сглаживание", .bandGrid: "Сетка полос", .windowKind: "Окно анализа",
+            .aggregation: "Свёртка полос", .agc: "Авторегулировка",
+            .resetDefaults: "Вернуть рекомендуемые", .autoStart: "Запускать захват при старте",
+            .autoStartNote: "Приложение начинает отправку сразу при открытии.",
+            .sensitivityNote: "Ручное усиление вместо автоматического. Нужно, когда лента дышит на тихих местах.",
+            .silenceNote: "Ниже этого уровня кадр считается пустым и пакет затухает.",
+            .gridNote: "WLED — таблица из самой прошивки, эффекты рисовались под неё.",
         ],
 
         .chinese: [
@@ -298,6 +319,14 @@ public enum L10n {
             .resetColour: "重置",
             .tabLook: "外观", .fromPalette: "取自配色",
             .animationOffNote: "场景不再绘制。数据包仍在发往灯带。",
+            .sensitivity: "灵敏度", .silenceThreshold: "静音阈值",
+            .smoothing: "平滑", .bandGrid: "频段网格", .windowKind: "分析窗",
+            .aggregation: "频段合并", .agc: "自动增益",
+            .resetDefaults: "恢复默认", .autoStart: "启动时开始采集",
+            .autoStartNote: "应用打开后立即开始发送。",
+            .sensitivityNote: "手动增益替代自动增益。当灯带在安静段落忽明忽暗时有用。",
+            .silenceNote: "低于此电平的帧视为空帧，数据包随之淡出。",
+            .gridNote: "WLED — 固件内置的频段表，特效正是为它设计的。",
         ],
 
         .hindi: [
@@ -354,6 +383,14 @@ public enum L10n {
             .resetColour: "रीसेट",
             .tabLook: "रूप", .fromPalette: "पैलेट से",
             .animationOffNote: "दृश्य नहीं बन रहा। पैकेट स्ट्रिप तक जाते रहते हैं।",
+            .sensitivity: "संवेदनशीलता", .silenceThreshold: "मौन सीमा",
+            .smoothing: "स्मूथिंग", .bandGrid: "बैंड ग्रिड", .windowKind: "विश्लेषण विंडो",
+            .aggregation: "बैंड संयोजन", .agc: "स्वतः गेन",
+            .resetDefaults: "डिफ़ॉल्ट लौटाएँ", .autoStart: "शुरू होते ही कैप्चर चालू",
+            .autoStartNote: "ऐप खुलते ही भेजना शुरू कर देता है।",
+            .sensitivityNote: "स्वतः के बजाय मैनुअल गेन। जब शांत हिस्सों में स्ट्रिप साँस लेती हो तब उपयोगी।",
+            .silenceNote: "इस स्तर से नीचे फ्रेम खाली माना जाता है और पैकेट फीका पड़ जाता है।",
+            .gridNote: "WLED — फर्मवेयर की अपनी तालिका, प्रभाव उसी के लिए बने थे।",
         ],
 
         .spanish: [
@@ -410,6 +447,14 @@ public enum L10n {
             .resetColour: "Restablecer",
             .tabLook: "Aspecto", .fromPalette: "de la paleta",
             .animationOffNote: "La escena no se dibuja. Los paquetes siguen saliendo a las tiras.",
+            .sensitivity: "Sensibilidad", .silenceThreshold: "Umbral de silencio",
+            .smoothing: "Suavizado", .bandGrid: "Rejilla de bandas", .windowKind: "Ventana de análisis",
+            .aggregation: "Plegado de bandas", .agc: "Ganancia automática",
+            .resetDefaults: "Restaurar valores", .autoStart: "Capturar al abrir",
+            .autoStartNote: "La app empieza a enviar en cuanto se abre.",
+            .sensitivityNote: "Ganancia manual en vez de automática. Útil cuando las tiras respiran en los pasajes suaves.",
+            .silenceNote: "Por debajo de este nivel el cuadro se considera vacío y el paquete se apaga.",
+            .gridNote: "WLED — la tabla incluida en el firmware, los efectos se hicieron para ella.",
         ],
 
         .french: [
@@ -466,6 +511,14 @@ public enum L10n {
             .resetColour: "Réinitialiser",
             .tabLook: "Aspect", .fromPalette: "de la palette",
             .animationOffNote: "La scène n’est plus dessinée. Les paquets continuent vers les rubans.",
+            .sensitivity: "Sensibilité", .silenceThreshold: "Seuil de silence",
+            .smoothing: "Lissage", .bandGrid: "Grille de bandes", .windowKind: "Fenêtre d’analyse",
+            .aggregation: "Repliement des bandes", .agc: "Gain automatique",
+            .resetDefaults: "Valeurs par défaut", .autoStart: "Capturer au lancement",
+            .autoStartNote: "L’app commence à envoyer dès son ouverture.",
+            .sensitivityNote: "Gain manuel au lieu d’automatique. Utile quand les rubans respirent dans les passages calmes.",
+            .silenceNote: "Sous ce niveau la trame est vide et le paquet s’éteint.",
+            .gridNote: "WLED — la table du firmware, les effets ont été dessinés pour elle.",
         ],
 
         .arabic: [
@@ -522,6 +575,14 @@ public enum L10n {
             .resetColour: "إعادة تعيين",
             .tabLook: "المظهر", .fromPalette: "من اللوحة",
             .animationOffNote: "لا يُرسم المشهد. تستمر الحزم في الذهاب إلى الأشرطة.",
+            .sensitivity: "الحساسية", .silenceThreshold: "عتبة الصمت",
+            .smoothing: "التنعيم", .bandGrid: "شبكة النطاقات", .windowKind: "نافذة التحليل",
+            .aggregation: "طي النطاقات", .agc: "كسب تلقائي",
+            .resetDefaults: "استعادة الافتراضي", .autoStart: "بدء الالتقاط عند التشغيل",
+            .autoStartNote: "يبدأ التطبيق بالإرسال فور فتحه.",
+            .sensitivityNote: "كسب يدوي بدل التلقائي. مفيد عندما تتنفس الأشرطة في المقاطع الهادئة.",
+            .silenceNote: "تحت هذا المستوى يُعد الإطار فارغًا وتخبو الحزمة.",
+            .gridNote: "WLED — الجدول المدمج في البرنامج الثابت، وقد صُممت المؤثرات له.",
         ],
 
         .bengali: [
@@ -578,6 +639,14 @@ public enum L10n {
             .resetColour: "রিসেট",
             .tabLook: "চেহারা", .fromPalette: "প্যালেট থেকে",
             .animationOffNote: "দৃশ্য আঁকা হচ্ছে না। প্যাকেট স্ট্রিপে যেতেই থাকে।",
+            .sensitivity: "সংবেদনশীলতা", .silenceThreshold: "নীরবতার সীমা",
+            .smoothing: "স্মুদিং", .bandGrid: "ব্যান্ড গ্রিড", .windowKind: "বিশ্লেষণ উইন্ডো",
+            .aggregation: "ব্যান্ড ভাঁজ", .agc: "স্বয়ংক্রিয় গেইন",
+            .resetDefaults: "ডিফল্ট ফেরান", .autoStart: "চালু হলেই ক্যাপচার",
+            .autoStartNote: "অ্যাপ খোলামাত্র পাঠানো শুরু করে।",
+            .sensitivityNote: "স্বয়ংক্রিয়ের বদলে ম্যানুয়াল গেইন। শান্ত অংশে স্ট্রিপ শ্বাস নিলে কাজে লাগে।",
+            .silenceNote: "এই স্তরের নিচে ফ্রেম খালি ধরা হয় ও প্যাকেট নিভে যায়।",
+            .gridNote: "WLED — ফার্মওয়্যারের নিজস্ব তালিকা, ইফেক্ট তারই জন্য আঁকা।",
         ],
 
         .portuguese: [
@@ -634,6 +703,14 @@ public enum L10n {
             .resetColour: "Redefinir",
             .tabLook: "Aparência", .fromPalette: "da paleta",
             .animationOffNote: "A cena não é desenhada. Os pacotes continuam indo às fitas.",
+            .sensitivity: "Sensibilidade", .silenceThreshold: "Limiar de silêncio",
+            .smoothing: "Suavização", .bandGrid: "Grade de bandas", .windowKind: "Janela de análise",
+            .aggregation: "Dobra de bandas", .agc: "Ganho automático",
+            .resetDefaults: "Restaurar padrões", .autoStart: "Capturar ao abrir",
+            .autoStartNote: "O app começa a enviar assim que abre.",
+            .sensitivityNote: "Ganho manual em vez de automático. Útil quando as fitas respiram nos trechos calmos.",
+            .silenceNote: "Abaixo deste nível o quadro é vazio e o pacote se apaga.",
+            .gridNote: "WLED — a tabela do firmware, os efeitos foram feitos para ela.",
         ],
 
         .urdu: [
@@ -690,6 +767,14 @@ public enum L10n {
             .resetColour: "ری سیٹ",
             .tabLook: "ظاہری شکل", .fromPalette: "پیلیٹ سے",
             .animationOffNote: "منظر نہیں بن رہا۔ پیکٹ سٹرپس کو جاتے رہتے ہیں۔",
+            .sensitivity: "حساسیت", .silenceThreshold: "خاموشی کی حد",
+            .smoothing: "ہمواری", .bandGrid: "بینڈ گرڈ", .windowKind: "تجزیہ ونڈو",
+            .aggregation: "بینڈ تہہ", .agc: "خودکار گین",
+            .resetDefaults: "ڈیفالٹ بحال کریں", .autoStart: "شروع ہوتے ہی کیپچر",
+            .autoStartNote: "ایپ کھلتے ہی بھیجنا شروع کر دیتی ہے۔",
+            .sensitivityNote: "خودکار کی بجائے دستی گین۔ جب پُرسکون حصوں میں سٹرپ سانس لے تو مفید۔",
+            .silenceNote: "اس سطح سے نیچے فریم خالی سمجھا جاتا ہے اور پیکٹ مدھم ہو جاتا ہے۔",
+            .gridNote: "WLED — فرم ویئر کی اپنی جدول، ایفیکٹس اسی کے لیے بنے۔",
         ],
 
         .indonesian: [
@@ -746,6 +831,14 @@ public enum L10n {
             .resetColour: "Atur ulang",
             .tabLook: "Tampilan", .fromPalette: "dari palet",
             .animationOffNote: "Adegan tidak digambar. Paket tetap dikirim ke strip.",
+            .sensitivity: "Sensitivitas", .silenceThreshold: "Ambang senyap",
+            .smoothing: "Penghalusan", .bandGrid: "Kisi pita", .windowKind: "Jendela analisis",
+            .aggregation: "Pelipatan pita", .agc: "Penguatan otomatis",
+            .resetDefaults: "Kembalikan bawaan", .autoStart: "Rekam saat dibuka",
+            .autoStartNote: "Aplikasi mulai mengirim begitu dibuka.",
+            .sensitivityNote: "Penguatan manual, bukan otomatis. Berguna saat strip bernapas di bagian tenang.",
+            .silenceNote: "Di bawah level ini bingkai dianggap kosong dan paket meredup.",
+            .gridNote: "WLED — tabel bawaan firmware, efek dirancang untuknya.",
         ],
 
         .german: [
@@ -802,6 +895,14 @@ public enum L10n {
             .resetColour: "Zurücksetzen",
             .tabLook: "Aussehen", .fromPalette: "aus der Palette",
             .animationOffNote: "Die Szene wird nicht gezeichnet. Pakete gehen weiter an die Streifen.",
+            .sensitivity: "Empfindlichkeit", .silenceThreshold: "Stilleschwelle",
+            .smoothing: "Glättung", .bandGrid: "Bandraster", .windowKind: "Analysefenster",
+            .aggregation: "Bandfaltung", .agc: "Automatische Verstärkung",
+            .resetDefaults: "Standard wiederherstellen", .autoStart: "Beim Start aufnehmen",
+            .autoStartNote: "Die App sendet sofort nach dem Öffnen.",
+            .sensitivityNote: "Manuelle statt automatischer Verstärkung. Nützlich, wenn die Streifen in leisen Passagen atmen.",
+            .silenceNote: "Unter diesem Pegel gilt der Rahmen als leer und das Paket blendet aus.",
+            .gridNote: "WLED — die Tabelle aus der Firmware, die Effekte wurden dafür gezeichnet.",
         ],
 
         .ukrainian: [
@@ -858,6 +959,14 @@ public enum L10n {
             .resetColour: "Скинути",
             .tabLook: "Вигляд", .fromPalette: "з палітри",
             .animationOffNote: "Сцена не малюється. Пакети продовжують іти на стрічки.",
+            .sensitivity: "Чутливість", .silenceThreshold: "Поріг тиші",
+            .smoothing: "Згладжування", .bandGrid: "Сітка смуг", .windowKind: "Вікно аналізу",
+            .aggregation: "Згортка смуг", .agc: "Авторегулювання",
+            .resetDefaults: "Повернути рекомендовані", .autoStart: "Запускати захоплення одразу",
+            .autoStartNote: "Застосунок починає надсилання одразу після відкриття.",
+            .sensitivityNote: "Ручне підсилення замість автоматичного. Потрібне, коли стрічка дихає на тихих місцях.",
+            .silenceNote: "Нижче цього рівня кадр вважається порожнім і пакет згасає.",
+            .gridNote: "WLED — таблиця з самої прошивки, ефекти малювалися під неї.",
         ],
 
         .italian: [
@@ -914,6 +1023,14 @@ public enum L10n {
             .resetColour: "Ripristina",
             .tabLook: "Aspetto", .fromPalette: "dalla palette",
             .animationOffNote: "La scena non viene disegnata. I pacchetti continuano ad andare alle strisce.",
+            .sensitivity: "Sensibilità", .silenceThreshold: "Soglia di silenzio",
+            .smoothing: "Smorzamento", .bandGrid: "Griglia delle bande", .windowKind: "Finestra di analisi",
+            .aggregation: "Ripiegamento bande", .agc: "Guadagno automatico",
+            .resetDefaults: "Ripristina predefiniti", .autoStart: "Cattura all’avvio",
+            .autoStartNote: "L’app inizia a inviare appena si apre.",
+            .sensitivityNote: "Guadagno manuale invece che automatico. Utile quando le strisce respirano nei passaggi quieti.",
+            .silenceNote: "Sotto questo livello il frame è vuoto e il pacchetto sfuma.",
+            .gridNote: "WLED — la tabella del firmware, gli effetti sono nati per quella.",
         ],
 
         .swedish: [
@@ -970,6 +1087,14 @@ public enum L10n {
             .resetColour: "Återställ",
             .tabLook: "Utseende", .fromPalette: "från paletten",
             .animationOffNote: "Scenen ritas inte. Paketen fortsätter till slingorna.",
+            .sensitivity: "Känslighet", .silenceThreshold: "Tystnadströskel",
+            .smoothing: "Utjämning", .bandGrid: "Bandrutnät", .windowKind: "Analysfönster",
+            .aggregation: "Bandvikning", .agc: "Automatisk förstärkning",
+            .resetDefaults: "Återställ standard", .autoStart: "Fånga vid start",
+            .autoStartNote: "Appen börjar sända så snart den öppnas.",
+            .sensitivityNote: "Manuell förstärkning i stället för automatisk. Bra när slingorna andas i tysta partier.",
+            .silenceNote: "Under denna nivå räknas bildrutan som tom och paketet tonar ut.",
+            .gridNote: "WLED — tabellen från firmware, effekterna ritades för den.",
         ],
 
         .belarusian: [
@@ -1026,6 +1151,14 @@ public enum L10n {
             .resetColour: "Скінуць",
             .tabLook: "Выгляд", .fromPalette: "з палітры",
             .animationOffNote: "Сцэна не малюецца. Пакеты працягваюць ісці на стужкі.",
+            .sensitivity: "Адчувальнасць", .silenceThreshold: "Парог цішыні",
+            .smoothing: "Згладжванне", .bandGrid: "Сетка палос", .windowKind: "Акно аналізу",
+            .aggregation: "Згортка палос", .agc: "Аўтарэгуляванне",
+            .resetDefaults: "Вярнуць рэкамендаваныя", .autoStart: "Запускаць захоп адразу",
+            .autoStartNote: "Праграма пачынае адпраўку адразу пасля адкрыцця.",
+            .sensitivityNote: "Ручное ўзмацненне замест аўтаматычнага. Патрэбна, калі стужка дыхае на цiхіх месцах.",
+            .silenceNote: "Ніжэй за гэты ўзровень кадр лічыцца пустым і пакет згасае.",
+            .gridNote: "WLED — табліца з самой прашыўкі, эфекты малявалiся пад яе.",
         ],
     ]
 }
