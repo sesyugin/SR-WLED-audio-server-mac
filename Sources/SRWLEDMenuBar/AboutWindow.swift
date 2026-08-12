@@ -39,10 +39,9 @@ struct AboutWindow: View {
     private var header: some View {
         ZStack {
             // Живая сцена в шапке — приложение показывает себя само.
-            NeonScene(sampler: { model.sampleBands() },
-                      isRunning: model.isRunning,
-                      palette: model.palette,
-                      showsWordmark: false)
+            CrownScene(sampler: { model.sampleBands() },
+                       isRunning: model.isRunning,
+                       palette: model.palette)
                 .frame(height: 170)
                 .clipped()
 

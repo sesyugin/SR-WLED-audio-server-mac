@@ -147,7 +147,7 @@ final class AppModel: ObservableObject {
         isFirstRun = !defaults.bool(forKey: Keys.launched)
 
         palette = Palette(rawValue: defaults.string(forKey: Keys.palette) ?? "") ?? .amber
-        sceneStyle = SceneStyle(rawValue: defaults.string(forKey: Keys.sceneStyle) ?? "") ?? .neon
+        sceneStyle = SceneStyle(rawValue: defaults.string(forKey: Keys.sceneStyle) ?? "") ?? .crown
 
         // Язык: сохранённый выбор, иначе язык системы, иначе английский.
         let stored = defaults.string(forKey: Keys.language) ?? ""

@@ -24,6 +24,10 @@ struct MainWindow: View {
         ZStack {
             Group {
                 switch model.sceneStyle {
+                case .crown:
+                    CrownScene(sampler: { model.sampleBands() },
+                               isRunning: model.isRunning,
+                               palette: model.palette)
                 case .neon:
                     NeonScene(sampler: { model.sampleBands() },
                               isRunning: model.isRunning,
