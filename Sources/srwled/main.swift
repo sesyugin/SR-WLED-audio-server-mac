@@ -54,29 +54,41 @@ struct Options {
 
 // MARK: - Разбор аргументов
 
+/// Язык консольной версии — язык системы, как и у приложения.
+///
+/// Читается один раз: за время работы он не меняется, а обращений к нему
+/// в горячем пути отправки быть не должно.
+let cliLanguage = Language.systemDefault
+
+func t(_ key: S, _ values: String...) -> String {
+    values.isEmpty ? L10n.string(key, cliLanguage)
+                   : L10n.string(key, cliLanguage, values)
+}
+
 func printUsage() {
+    // Имена параметров не переводятся: их набирают, а не читают.
     print("""
-    srwled — сервер звуковой синхронизации для лент с WLED
+    srwled — \(t(.cliTagline))
 
-    Использование:
-      srwled --targets 192.168.1.50,192.168.1.51   отправка на конкретные адреса
-      srwled --mode broadcast                       широковещательно по сети
-      srwled --mode multicast                       на 239.0.0.1
+    \(t(.cliUsage))
+      srwled --targets 192.168.1.50,192.168.1.51   \(t(.cliUseTargets))
+      srwled --mode broadcast                       \(t(.cliUseBroadcast))
+      srwled --mode multicast                       \(t(.cliUseMulticast))
 
-    Параметры:
-      --targets <список>   адреса лент через запятую (включает точечную отправку)
-      --mode <режим>       broadcast | subnet | multicast | targets
-      --port <номер>       порт (по умолчанию 11988)
-      --seconds <N>        работать N секунд и выйти (по умолчанию до Ctrl-C)
-      --quiet              не печатать индикатор уровня
-      --restart-after <N>  через N секунд пересобрать захват (проверка перезапуска)
-      --version            версия программы
-      --help               эта справка
+    \(t(.cliOptions))
+      --targets <...>      \(t(.cliOptTargets))
+      --mode <...>         \(t(.cliOptMode)): broadcast | subnet | multicast | targets
+      --port <N>           \(t(.cliOptPort))
+      --seconds <N>        \(t(.cliOptSeconds))
+      --quiet              \(t(.cliOptQuiet))
+      --restart-after <N>  \(t(.cliOptRestart))
+      --version            \(t(.cliOptVersion))
+      --help               \(t(.cliOptHelp))
 
-    Сравнение обработки:
-      --original           вести себя в точности как Windows-версия
-      --bands <вариант>    wled (по умолчанию) | custom — сетка полос
-      --window <вариант>   hann (по умолчанию) | flattop — окно анализа
+    \(t(.cliCompare))
+      --original           \(t(.cliOptOriginal))
+      --bands <...>        \(t(.cliOptBands))
+      --window <...>       \(t(.cliOptWindow))
     """)
 }
 
@@ -94,33 +106,33 @@ func parseOptions() -> Options?? {
             return .some(nil)          // штатный выход
 
         case "--version", "-v":
-            print("srwled \(Version.current) (сборка \(Version.build))")
+            print("srwled \(Version.current) (\(t(.cliBuild)) \(Version.build))")
             return .some(nil)
 
         case "--targets":
-            guard let list = value() else { print("--targets требует список адресов"); return nil }
+            guard let list = value() else { print(t(.cliNeedsList, "--targets")); return nil }
             options.settings.targetIPList = [list]
             options.settings.sendMode = .targetIPList
 
         case "--mode":
-            guard let mode = value() else { print("--mode требует значение"); return nil }
+            guard let mode = value() else { print(t(.cliNeedsValue, "--mode")); return nil }
             switch mode {
             case "broadcast": options.settings.sendMode = .broadcastLAN
             case "subnet": options.settings.sendMode = .broadcastSubnet
             case "multicast": options.settings.sendMode = .multicast
             case "targets": options.settings.sendMode = .targetIPList
-            default: print("неизвестный режим: \(mode)"); return nil
+            default: print(t(.cliUnknownMode, mode)); return nil
             }
 
         case "--port":
             guard let text = value(), let port = UInt16(text) else {
-                print("--port требует число"); return nil
+                print(t(.cliNeedsNumber, "--port")); return nil
             }
             options.settings.port = port
 
         case "--seconds":
             guard let text = value(), let seconds = Double(text) else {
-                print("--seconds требует число"); return nil
+                print(t(.cliNeedsNumber, "--seconds")); return nil
             }
             options.seconds = seconds
 
@@ -134,24 +146,24 @@ func parseOptions() -> Options?? {
             options.settings.broadcastIPList = network.broadcastIPList
 
         case "--bands":
-            guard let value = value() else { print("--bands требует значение"); return nil }
+            guard let value = value() else { print(t(.cliNeedsValue, "--bands")); return nil }
             switch value {
             case "wled": options.settings.bandLayout = .wled
             case "custom": options.settings.bandLayout = .custom
-            default: print("--bands принимает wled или custom"); return nil
+            default: print(t(.cliAccepts, "--bands", "wled, custom")); return nil
             }
 
         case "--window":
-            guard let value = value() else { print("--window требует значение"); return nil }
+            guard let value = value() else { print(t(.cliNeedsValue, "--window")); return nil }
             switch value {
             case "hann": options.settings.window = .hann
             case "flattop": options.settings.window = .flatTop
-            default: print("--window принимает hann или flattop"); return nil
+            default: print(t(.cliAccepts, "--window", "hann, flattop")); return nil
             }
 
         case "--restart-after":
             guard let text = value(), let seconds = Double(text) else {
-                print("--restart-after требует число"); return nil
+                print(t(.cliNeedsNumber, "--restart-after")); return nil
             }
             options.restartAfter = seconds
 
@@ -159,7 +171,7 @@ func parseOptions() -> Options?? {
             options.quiet = true
 
         default:
-            print("неизвестный параметр: \(flag)")
+            print(t(.cliUnknownOption, flag))
             printUsage()
             return nil
         }
@@ -175,7 +187,7 @@ func runServer() -> Int32 {
 
     let endpoints = PacketSender.resolveEndpoints(settings: options.settings)
     guard !endpoints.isEmpty else {
-        print("Некуда отправлять: укажи --targets со списком адресов или выбери --mode broadcast.")
+        print("\(t(.failNoTargets)). \(t(.cliNoTargetsHint))")
         return 1
     }
 
@@ -184,7 +196,7 @@ func runServer() -> Int32 {
         transport = try UDPTransport(
             allowBroadcast: PacketSender.needsBroadcast(options.settings.sendMode))
     } catch {
-        print("Не удалось открыть сокет: \(error)")
+        print("\(t(.cliSocketFailed)): \(error)")
         return 1
     }
 
@@ -198,15 +210,13 @@ func runServer() -> Int32 {
         settings: options.settings,
         onFrameReady: { frameReady.signal() },
         onEvent: { event in
-            // Консоль пока говорит только по-русски, поэтому и причину печатаем
-            // по-русски: смесь языков в одной строке хуже одного языка.
             switch event {
             case .restarted(let reason, let detail):
                 let tail = detail.isEmpty ? "" : ": \(detail)"
-                print("\n[захват пересобран: \(L10n.string(reason, .russian))\(tail)]")
+                print("\n[\(t(.captureRestarted)): \(t(reason))\(tail)]")
             case .failed(let reason, let detail):
                 let tail = detail.isEmpty ? "" : ": \(detail)"
-                print("\n[ошибка захвата: \(L10n.string(reason, .russian))\(tail)]")
+                print("\n[\(t(.cliCaptureError)): \(t(reason))\(tail)]")
             case .started, .stopped:
                 break
             }
@@ -216,18 +226,19 @@ func runServer() -> Int32 {
         try session.start()
     } catch {
         print("""
-        Не удалось запустить захват системного звука: \(error)
+        \(t(.failCapture)): \(error)
 
-        Если macOS не спросила разрешение — выдай его вручную:
-          Системные настройки → Конфиденциальность и безопасность → Запись звука.
+        \(t(.cliPermissionHint))
         """)
         return 1
     }
 
-    print("Источник звука: \(session.deviceName), \(Int(session.sampleRate)) Гц, \(session.channels) кан.")
-    print("Отправка: \(endpoints.map(\.description).joined(separator: ", "))")
-    print("Обработка: полосы \(options.settings.bandLayout.rawValue), окно "
-          + "\(options.settings.window.rawValue), уровень \(options.settings.loudness.rawValue)")
+    print(t(.cliSource, session.deviceName, "\(Int(session.sampleRate))", "\(session.channels)"))
+    print(t(.cliSending, endpoints.map(\.description).joined(separator: ", ")))
+    print(t(.cliProcessing,
+            options.settings.bandLayout.rawValue,
+            options.settings.window.rawValue,
+            options.settings.loudness.rawValue))
     print("")
 
     // Отправка идёт в отдельном потоке, разбуженном самим анализом.
@@ -267,9 +278,9 @@ func runServer() -> Int32 {
                 let index = min(blocks.count - 1, max(0, Int(value * Float(blocks.count - 1) + 0.5)))
                 return blocks[index]
             }.joined()
-            let status = pipeline.isSilent ? "тишина" : "звук  "
+            let status = pipeline.isSilent ? t(.silent) : t(.playing)
             let failure = sender.lastError.map { " ⚠︎ \($0)" } ?? ""
-            print("\r[\(bar)] \(status)  пакетов: \(sender.packetsSent)\(failure)   ", terminator: "")
+            print("\r[\(bar)] \(status)  \(t(.cliPackets)): \(sender.packetsSent)\(failure)   ", terminator: "")
             fflush(stdout)
         }
         timer.resume()
@@ -311,11 +322,11 @@ func runServer() -> Int32 {
     _ = senderFinished.wait(timeout: .now() + .milliseconds(300))
 
     // Гасим ленту, а не бросаем её в последнем кадре: ни ваниль, ни MM полосы сами не гасят.
-    print("\n\nГашение ленты…")
+    print("\n\n\(t(.cliFading))")
     sender.fadeOut { seconds in Thread.sleep(forTimeInterval: seconds) }
 
     session.stop()
-    print("Отправлено пакетов: \(sender.packetsSent). Захват остановлен, устройства освобождены.")
+    print(t(.cliFinished, "\(sender.packetsSent)"))
     return 0
 }
 

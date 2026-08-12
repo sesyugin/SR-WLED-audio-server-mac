@@ -135,9 +135,7 @@ appeared, grant it by hand:
 **System Settings → Privacy & Security → Audio Recording**.
 
 All the options are in `srwled --help`; the version is `srwled --version`.
-
-Note: the command line version still speaks Russian only. The app itself is
-translated into sixteen languages.
+It speaks the language of the system, the same sixteen as the app.
 
 ### Comparing against the original
 
