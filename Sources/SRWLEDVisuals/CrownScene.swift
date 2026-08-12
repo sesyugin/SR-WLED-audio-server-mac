@@ -132,8 +132,12 @@ public struct CrownScene: View {
         let flash = beat.intensity
         let hues = palette.hues
 
-        let radius = base * 0.325
-        let maxHeight = base * 0.30
+        // Венец крупнее прежнего. Композиция строится по короткой стороне кадра,
+        // и при 0.325 сцена занимала меньше двух третей высоты — вокруг неё
+        // оставалось поле пустоты шире самой сцены. Дальше поднимать нельзя:
+        // на пике столбики подходят к верхней кромке кадра.
+        let radius = base * 0.348
+        let maxHeight = base * 0.313
         let spin = time * 0.10
         let tilt = 0.92
         let focal = base * 2.0
@@ -275,7 +279,8 @@ public struct CrownScene: View {
                                bass: smoother.values.prefix(3).max() ?? 0,
                                air: smoother.values.suffix(4).max() ?? 0,
                                beat: flash,
-                               time: time)
+                               time: time,
+                               levels: smoother.values)
         var stageDrawn = false
 
         for lamp in lamps {
@@ -416,9 +421,14 @@ public struct CrownScene: View {
                                           brightness: 1).opacity(0.14)),
                        style: StrokeStyle(lineWidth: max(0.5, base * 0.0008)))
 
-        // Засечки по границам шестнадцати полос.
-        for band in 0...15 {
-            let position = Double(band) / 15 * 0.5
+        // Засечки по границам шестнадцати полос — по всему кругу, а не по
+        // его половине. Венец зеркальный: полосы идут от баса к верхам по
+        // одной половине и возвращаются обратно по другой, поэтому и засечек
+        // должно быть тридцать две — по шестнадцать на каждую половину.
+        // Прежде размечалась только первая, и вторая половина круга стояла
+        // голой, будто разметку не дочертили.
+        for band in 0...31 {
+            let position = Double(band) / 31
             let theta = position * 2 * .pi
             let inner = project(cos(theta) * radius * 1.055, 0, sin(theta) * radius * 1.055).0
             let outer = project(cos(theta) * radius * 1.105, 0, sin(theta) * radius * 1.105).0
@@ -426,7 +436,7 @@ public struct CrownScene: View {
             tick.move(to: inner)
             tick.addLine(to: outer)
             context.stroke(tick,
-                           with: .color(.white.opacity(band % 5 == 0 ? 0.20 : 0.08)),
+                           with: .color(.white.opacity(band % 5 == 0 ? 0.18 : 0.075)),
                            style: StrokeStyle(lineWidth: max(0.5, base * 0.0008)))
         }
 
@@ -442,19 +452,21 @@ public struct CrownScene: View {
                 : "\(hz)"
             return (band, text)
         }
+        // Полоса встречается на круге дважды: венец зеркальный, и правая
+        // половина повторяет левую. Подписываются обе — раньше из пары брался
+        // только ближний к зрителю, и разметка обрывалась на середине круга,
+        // будто спектр кончается на четырёх с половиной килогерцах.
+        var placed: [(text: String, position: Double)] = []
         for label in labels {
-            // Полоса встречается на круге дважды из-за зеркальной симметрии.
-            // Берём ту сторону, что ближе к зрителю.
             let first = Double(label.band) / 15 * 0.5
-            let second = 1 - first
-            let candidates = [first, second].map { position -> (CGPoint, Double, Double) in
-                let theta = position * 2 * .pi
-                let projected = project(cos(theta) * radius * 1.20, 0, sin(theta) * radius * 1.20)
-                return (projected.0, projected.2, theta)
-            }
-            let picked = candidates[0].1 < candidates[1].1 ? candidates[0] : candidates[1]
-            let chosen = (picked.0, picked.1)
-            let chosenAngle = picked.2
+            placed.append((label.text, first))
+            placed.append((label.text, 1 - first))
+        }
+        for label in placed {
+            let chosenAngle = label.position * 2 * .pi
+            let projected = project(cos(chosenAngle) * radius * 1.20, 0,
+                                    sin(chosenAngle) * radius * 1.20)
+            let chosen = (projected.0, projected.2)
 
             // Подписи живут только на передней дуге: на дальней они лезут
             // на колонны и читаются мусором поверх света. Раньше тут стоял

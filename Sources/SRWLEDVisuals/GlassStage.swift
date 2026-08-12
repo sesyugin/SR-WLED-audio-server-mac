@@ -21,6 +21,18 @@ struct GlassStage {
     let beat: Double
     /// Время сцены в секундах: по нему качаются фигуры.
     let time: Double
+    /// Все шестнадцать полос спектра. Нужны прожекторам: каждый прибор сидит
+    /// на своей полосе и загорается от неё, а не от общей громкости. Четыре
+    /// лампы, разгорающиеся по одной волне, читаются гирляндой на таймере;
+    /// разведённые по полосам, они отыгрывают музыку — и по ним видно, что
+    /// сцена не показывает анимацию, а слушает.
+    var levels: [Double] = []
+
+    /// Уровень полосы с защитой от пустого списка.
+    private func level(_ index: Int) -> Double {
+        guard !levels.isEmpty else { return 0 }
+        return levels[min(levels.count - 1, max(0, index))]
+    }
 
     /// Стекло фигуры. `density` — плотность заливки: у всех она одна, и поднята
     /// только у вокалиста. Он единственный, кого судят по силуэту на голом полу:
@@ -176,31 +188,12 @@ struct GlassStage {
         // от которой передний план и рассыпался.
         pieces += roadCase(at: place(-0.208, -0.480), width: stand * 0.102, turn: 0.42,
                            project: onDeck, line: line)
-        pieces += cableCoil(at: place(0.210, -0.500), radius: stand * 0.058,
-                            gauge: stand * 0.0088,
-                            tail: place(0.330, -0.372),
-                            project: onDeck, line: line)
-
-        // Кабели от инструментов к порталу. Провода объясняют, откуда у сцены
-        // звук: без них и гитара, и клавиши стоят сами по себе, а колонки —
-        // сами по себе.
-        // Шнур тоньше прежнего почти вдвое. У этого материала светится кромка
-        // на просвет, а у тонкой капсулы кромка занимает всю её ширину: чем
-        // толще был провод, тем ярче он горел — и от гитары к порталу тянулся
-        // не кабель, а канат в подсветке, самый заметный предмет в углу сцены.
-        let gauge = stand * 0.0026
-        pieces += cable(from: (place(-0.350, -0.145).0, -stand * 0.245, place(-0.350, -0.145).1),
-                        to: (place(-0.487, 0.095).0, 0, place(-0.487, 0.095).1),
-                        bow: radius * 0.028, hang: stand * 0.085, gauge: gauge,
-                        project: onDeck, line: line)
-        pieces += cable(from: (place(0.362, -0.125).0, -stand * 0.185, place(0.362, -0.125).1),
-                        to: (place(0.500, 0.095).0, 0, place(0.500, 0.095).1),
-                        bow: -radius * 0.026, hang: stand * 0.070, gauge: gauge,
-                        project: onDeck, line: line)
-        // Шнура от микрофона к монитору здесь больше нет. Он шёл через
-        // всю фигуру вокалиста и через передний клин — две самые заметные
-        // вещи в нижней трети кадра, — и объяснял ровно ничего: у певца
-        // на такой сцене радиосистема, а не провод под ногами.
+        // Кабелей на сцене больше нет — ни бухты у правого клина, ни шнуров
+        // от инструментов к порталу. Провод на этой камере всегда ложится
+        // поперёк того, что за ним, и читается не проводкой, а царапиной по
+        // кадру: трасса тут в полтора десятка пикселей, и кривизну, по которой
+        // шнур узнаётся шнуром, задать негде. Аппаратура на такой сцене
+        // и без того понятно откуда звучит.
 
         // Общая сортировка: без неё тела накладываются в порядке создания
         // и объём рассыпается. В списке около 320 тел — это и есть цена кадра,
@@ -232,7 +225,7 @@ struct GlassStage {
                             deck: Double)
     {
         let podiumRadius = radius * 0.72
-        let facets = 16
+        let facets = 72
         // Полграни поворота: без него вершина многоугольника приходится точно
         // на середину переднего края, и помост показывает зрителю ребро вместо
         // щита. Фасадом вперёд он читается сценой, ребром — кристаллом.
@@ -268,59 +261,63 @@ struct GlassStage {
             apron.addLine(to: corner(index % facets, 0).0)
         }
         apron.closeSubpath()
-        context.fill(apron, with: .color(Color(hue: 0.030, saturation: 0.95, brightness: 0.055)))
 
-        // Щиты борта, от дальних к ближним. Дальние всё равно уйдут под крышку,
-        // но отбраковывать их отдельно незачем: порядок по глубине закрывает
-        // их сам, а шестнадцать путей на кадр дешевле одной фигуры.
-        var panels: [(path: Path, depth: Double, lit: Double)] = []
-        for index in 0..<facets {
-            let mid = (Double(index) + 0.5) / Double(facets) * 2 * .pi + phase
-            let topFrom = corner(index, deck), topTo = corner((index + 1) % facets, deck)
-            let footFrom = corner(index, 0), footTo = corner((index + 1) % facets, 0)
 
-            var path = Path()
-            path.move(to: topFrom.0)
-            path.addLine(to: topTo.0)
-            path.addLine(to: footTo.0)
-            path.addLine(to: footFrom.0)
-            path.closeSubpath()
+        // Борт красится целиком, одной поперечной раскладкой. Заливать каждую
+        // грань отдельно можно, пока граней шестнадцать; на семидесяти двух
+        // каждая вырождается в полоску шириной в пару пикселей, и раскладка
+        // по её собственным границам полосит зеброй — у соседних заливок край
+        // общий, и сглаживание считает его дважды.
+        //
+        // Освещённость идёт по кругу: ярче всего левый передний скат, темнее
+        // всего правый задний. Ровно закрашенная лента читается не боком,
+        // а тенью под кругом.
+        context.fill(apron,
+                     with: .linearGradient(
+                         Gradient(stops: [
+                             .init(color: Color(hue: 0.074, saturation: 0.64,
+                                                brightness: 0.44), location: 0.0),
+                             .init(color: Color(hue: 0.056, saturation: 0.80,
+                                                brightness: 0.27), location: 0.34),
+                             .init(color: Color(hue: 0.038, saturation: 0.93,
+                                                brightness: 0.115), location: 0.78),
+                             .init(color: Color(hue: 0.030, saturation: 0.96,
+                                                brightness: 0.070), location: 1.0),
+                         ]),
+                         startPoint: CGPoint(x: apron.boundingRect.minX,
+                                             y: apron.boundingRect.midY),
+                         endPoint: CGPoint(x: apron.boundingRect.maxX,
+                                           y: apron.boundingRect.midY)))
+        context.fill(apron,
+                     with: .linearGradient(
+                         Gradient(stops: [
+                             .init(color: .clear, location: 0.0),
+                             .init(color: .clear, location: 0.42),
+                             .init(color: .black.opacity(0.58), location: 1.0),
+                         ]),
+                         startPoint: CGPoint(x: apron.boundingRect.midX,
+                                             y: apron.boundingRect.minY),
+                         endPoint: CGPoint(x: apron.boundingRect.midX,
+                                           y: apron.boundingRect.maxY)))
 
-            // Освещённость щита по его развороту: свет падает сверху-слева,
-            // значит ярче всего левый передний скат, темнее всего правый задний.
-            let facing = max(0, cos(mid + .pi / 2 + 0.55))
-            panels.append((path, (topFrom.1 + footTo.1) / 2, 0.10 + 0.66 * facing))
-        }
-        panels.sort { $0.depth > $1.depth }
-
-        for panel in panels {
-            let bounds = panel.path.boundingRect
-            context.fill(panel.path,
-                         with: .linearGradient(
-                             Gradient(colors: [
-                                 Color(hue: 0.042 + 0.034 * panel.lit,
-                                       saturation: 0.94 - 0.28 * panel.lit,
-                                       brightness: 0.085 + 0.44 * panel.lit),
-                                 Color(hue: 0.030, saturation: 0.96,
-                                       brightness: 0.028 + 0.085 * panel.lit),
-                             ]),
-                             startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
-                             endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)))
-        }
-
-        // Рёбра между щитами: тонкая светлая линия по каждому стыку. У гранёного
-        // тела ребро всегда ловит блик — по нему грань и отделяется от соседней,
-        // когда обе повёрнуты к свету почти одинаково.
-        var edges = Path()
-        for index in 0..<facets {
-            edges.move(to: corner(index, deck).0)
-            edges.addLine(to: corner(index, 0).0)
-        }
+        // Рёбра между гранями. Семьдесят две тонкие линии по борту — то, чем
+        // гранёное тело отличается от точёного: у каждой грани своё ребро,
+        // и оно ловит блик. Ближние рёбра ярче дальних: на дальней половине
+        // борт от зрителя отвёрнут, и блику там взяться неоткуда.
         context.blendMode = .plusLighter
-        context.stroke(edges,
-                       with: .color(Color(hue: 0.068, saturation: 0.50, brightness: 1)
-                           .opacity(0.055 + 0.075 * energy)),
-                       style: StrokeStyle(lineWidth: max(0.4, base * 0.0007)))
+        for index in 0..<facets {
+            let theta = Double(index) / Double(facets) * 2 * .pi + phase
+            // Ближняя половина — та, где z отрицательное.
+            let nearness = max(0, -sin(theta))
+            guard nearness > 0.02 else { continue }
+            var edge = Path()
+            edge.move(to: corner(index, deck).0)
+            edge.addLine(to: corner(index, 0).0)
+            context.stroke(edge,
+                           with: .color(Color(hue: 0.070, saturation: 0.48, brightness: 1)
+                               .opacity((0.030 + 0.055 * energy) * nearness)),
+                           style: StrokeStyle(lineWidth: max(0.4, base * 0.0006)))
+        }
         context.blendMode = .normal
 
         // Крышка настила поверх борта: она и закрывает дальнюю половину.
@@ -1824,8 +1821,11 @@ struct GlassStage {
         // друга, и ферма с вышками читалась ворохом наложенных линий, сквозь
         // который видно и то, что за ним. У чёрного крашеного металла толщи
         // нет вовсе — сквозь него не идёт ничего.
-        Solid3D.Material(saturation: 0.92, glow: 0.08 + 0.16 * air,
-                         opacity: 1.12, shade: 0.50)
+        // Непрозрачность заведена до самого верха шкалы глухости: при 1.12
+        // заливка доходила до двух третей, и сквозь ферму просвечивал венец —
+        // балка читалась не стальной, а нарисованной поверх ламп.
+        Solid3D.Material(saturation: 0.94, glow: 0.06 + 0.12 * air,
+                         opacity: 1.32, shade: 0.34)
     }
 
     /// Микрофонная стойка с журавлём.
@@ -2104,122 +2104,6 @@ struct GlassStage {
         return pieces
     }
 
-    /// Смотанный кольцом жгут кабеля, брошенный у кромки, и его хвост.
-    ///
-    /// Кольцо из семи звеньев, а не из двенадцати: на экране у бухты диаметр
-    /// в три десятка пикселей, и семиугольник от круга там не отличить, а
-    /// каждое лишнее звено — отдельное тело в общей сортировке.
-    /// Жгут заметно толще одиночного шнура: это связка проводов, и по толщине
-    /// она и отличается от той нитки, что идёт от гитары к порталу.
-    private func cableCoil(at foot: (Double, Double), radius r: Double, gauge: Double,
-                           tail: (Double, Double),
-                           project: @escaping Solid3D.Projection,
-                           line: Double) -> [Solid3D.Piece]
-    {
-        let (x, z) = foot
-        let rubber = Solid3D.Material(saturation: 0.96, glow: 0.04, opacity: 0.56)
-        // Кольцо лежит на полу, поэтому его уровень — собственный радиус жгута,
-        // а не ноль: бухта, посаженная в пол по центру, наполовину утоплена
-        // в подиум и читается вдавленной в него канавкой.
-        let level = -gauge
-        var pieces: [Solid3D.Piece] = []
-
-        // Не кольцо, а полтора витка спирали: радиус к концу подбирается,
-        // виток уходит внутрь и наезжает на начало. Замкнутое кольцо ровного
-        // радиуса читалось выточенной шайбой, а смотанный кабель узнаётся
-        // именно тем, что виток лежит на витке. Сплюснуто поперёк взгляда:
-        // правильный круг на этой камере опять же выходит деталью станка.
-        let links = 8
-        let turns = 1.45
-        func ring(_ step: Double) -> (Double, Double, Double) {
-            let angle = step * turns * 2 * .pi
-            let coil = r * (1 - 0.20 * step)
-            return (x + cos(angle) * coil,
-                    level - step * gauge * 1.1,
-                    z + sin(angle) * coil * 0.72)
-        }
-        for index in 0..<links {
-            pieces.append(Solid3D.capsule(
-                from: ring(Double(index) / Double(links)),
-                to: ring(Double(index + 1) / Double(links)),
-                radius: gauge, material: rubber, project: project, lineWidth: line * 0.7))
-        }
-
-        // Хвост уходит из бухты к соседнему предмету. Без него кольцо лежит
-        // само по себе и читается обручем: кабель узнаётся тем, что у него
-        // есть куда идти. Выходит хвост из обода, а не из середины: пущенный
-        // от центра, он режет кольцо пополам и вся бухта читается перечёркнутой.
-        let mouth = ring(0)
-        let steps = 3
-        for index in 0..<steps {
-            let t0 = Double(index) / Double(steps), t1 = Double(index + 1) / Double(steps)
-            func run(_ t: Double) -> (Double, Double, Double) {
-                // Небольшой изгиб поперёк трассы: брошенный кабель не лежит
-                // по линейке. Больше трети радиуса бухты давать нельзя:
-                // на крутой дуге последнее звено выходит на экране почти
-                // отвесным, и хвост читается не проводом, а подпоркой,
-                // приставленной к клину.
-                let bend = sin(t * .pi) * r * 0.30
-                return (mouth.0 + (tail.0 - mouth.0) * t + bend,
-                        level, mouth.2 + (tail.1 - mouth.2) * t - bend * 0.5)
-            }
-            pieces.append(Solid3D.capsule(from: run(t0), to: run(t1), radius: gauge,
-                                          material: rubber, project: project,
-                                          lineWidth: line * 0.7))
-        }
-
-        return pieces
-    }
-
-    /// Кабель: провисающая дуга из тонких капсул.
-    ///
-    /// Дуга задана квадратичной кривой, у которой опорная точка лежит ниже
-    /// обоих концов, — так провод провисает собственным весом, а не идёт
-    /// натянутой струной. Кончается кабель на полу, поэтому провис берётся
-    /// не больше половины подъёма: иначе середина дуги уходит под сцену.
-    private func cable(from start: (Double, Double, Double),
-                       to end: (Double, Double, Double),
-                       bow: Double, hang: Double, gauge: Double,
-                       project: @escaping Solid3D.Projection,
-                       line: Double) -> [Solid3D.Piece]
-    {
-        // Провод глухой и тёмный: это единственное на сцене, что не должно
-        // светиться вовсе — светящийся кабель читается лучом, а не резиной.
-        // Непрозрачность держит и накладные слои стекла, поэтому она у провода
-        // низкая: при плотной заливке тонкая капсула набирает столько кромки
-        // на просвет, что шнур выходит светлее самой гитары.
-        let rubber = Solid3D.Material(saturation: 0.96, glow: 0.02, opacity: 0.50)
-        // Изгиб вбок берётся по нормали к трассе в плане: без него кабель
-        // лежит по линейке от гнезда до колонки и выглядит проложенным
-        // по чертежу.
-        let dx = end.0 - start.0, dz = end.2 - start.2
-        let run = max(0.0001, (dx * dx + dz * dz).squareRoot())
-        let control = ((start.0 + end.0) / 2 - dz / run * bow,
-                       (start.1 + end.1) / 2 + hang,
-                       (start.2 + end.2) / 2 + dx / run * bow)
-
-        func point(_ t: Double) -> (Double, Double, Double) {
-            let inv = 1 - t
-            return (inv * inv * start.0 + 2 * inv * t * control.0 + t * t * end.0,
-                    inv * inv * start.1 + 2 * inv * t * control.1 + t * t * end.1,
-                    inv * inv * start.2 + 2 * inv * t * control.2 + t * t * end.2)
-        }
-
-        // Толщина задана снаружи и одна на все провода: если считать её от
-        // длины трассы, длинный прогон выходит толще короткого — от гитары
-        // к порталу шёл бы не шнур, а пожарный рукав.
-        // Шесть звеньев, а не девять: на этой длине дуга и так гладкая, а каждое
-        // звено — отдельное тело в общей сортировке, и три провода стоили сцене
-        // почти десятой доли всех её тел.
-        let steps = 6
-        return (0..<steps).map { index in
-            let a = point(Double(index) / Double(steps))
-            let b = point(Double(index + 1) / Double(steps))
-            return Solid3D.capsule(from: a, to: b, radius: gauge,
-                                   material: rubber, project: project, lineWidth: line * 0.7)
-        }
-    }
-
     /// Ферма со светом позади группы: две стойки, решётчатая балка между ними
     /// и прожекторы под нею.
     ///
@@ -2349,15 +2233,32 @@ struct GlassStage {
             // Разгораются лампы по очереди — каждой свой сдвиг фазы в четверть
             // волны: загоревшись разом, четыре одинаковых пятна читаются не
             // светом, а мигающей гирляндой.
-            let burn = max(0, wave(Double(index) * 1.57, rate: 1.4)) * live
+            // Прибор сидит на своей полосе спектра: крайние на низах, где
+            // работает бочка, средние на верхней середине, где живут голос
+            // и гитара. Полосы взяты не подряд, а вразбег — соседние в спектре
+            // ходят почти одинаково, и четыре лампы снова горели бы разом.
+            //
+            // Волна оставлена подмешанной слабой долей: в тишине спектр
+            // ровный, и без неё ферма просто гасла бы насмерть.
+            let watching = [1, 6, 9, 13][index]
+            let burn = min(1, level(watching) * 1.25
+                * (0.55 + 0.45 * max(0, wave(Double(index) * 1.57, rate: 1.4))))
             // Линза раскалена: у прожектора видно ровно две вещи — тёмный корпус
             // и горящее стекло, и вся его узнаваемость держится на их перепаде.
-            // Линза горячая и в гамме сцены. Прежние 0.46 насыщенности вместе
-            // с накладным бликом во всю её площадь давали бледное серо-голубое
-            // стекло — единственное холодное пятно на всей золотой сцене.
-            let lens = Solid3D.Material(saturation: 0.74,
-                                        glow: 0.34 + 0.34 * burn + 0.32 * energy,
-                                        opacity: 1.06)
+            // Прежние 0.46 насыщенности вместе с накладным бликом во всю её
+            // площадь давали бледное серо-голубое стекло — единственное
+            // холодное пятно на всей золотой сцене.
+            let lens = Solid3D.Material(saturation: 0.62 - 0.24 * burn,
+                                        glow: 0.34 + 0.62 * burn + 0.16 * energy,
+                                        opacity: 1.06, shade: 1)
+            // Корпус прибора — из того же материала, что и вся остальная
+            // сцена: то же золотое стекло, только плотнее и глуше. Отдельное
+            // тёмное железо выделяло приборы из общей гаммы, и на золотой
+            // сцене они висели чужими деталями. И он разгорается вместе
+            // со своей линзой: у работающей головы греется весь корпус.
+            let headBody = Solid3D.Material(saturation: 0.90,
+                                            glow: 0.08 + 0.26 * burn + 0.12 * air,
+                                            opacity: 1.14, shade: 0.40 + 0.26 * burn)
 
             // Прибор собран как настоящая голова на вилке: хомут на поясе,
             // короткое основание, две щеки вилки по бокам и корпус между ними.
@@ -2371,20 +2272,20 @@ struct GlassStage {
             pieces.append(Solid3D.box(
                 centre: (x, clampY + stand * 0.008, back),
                 size: (stand * 0.030, stand * 0.016, stand * 0.030),
-                material: metal, project: project, lineWidth: line))
+                material: headBody, project: project, lineWidth: line))
             pieces.append(Solid3D.capsule(
                 from: (x, clampY + stand * 0.014, back), to: (x, yokeY, back),
-                radius: stand * 0.006, material: metal, project: project, lineWidth: line))
+                radius: stand * 0.006, material: headBody, project: project, lineWidth: line))
             for cheek in [-1.0, 1.0] {
                 pieces.append(Solid3D.capsule(
                     from: (x + cheek * stand * 0.024, yokeY, back),
                     to: (x + cheek * stand * 0.024, headY + stand * 0.004, back - stand * 0.006),
-                    radius: stand * 0.005, material: metal, project: project, lineWidth: line))
+                    radius: stand * 0.005, material: headBody, project: project, lineWidth: line))
             }
             pieces.append(Solid3D.capsule(
                 from: (x - stand * 0.024, yokeY, back),
                 to: (x + stand * 0.024, yokeY, back),
-                radius: stand * 0.0045, material: metal, project: project, lineWidth: line))
+                radius: stand * 0.0045, material: headBody, project: project, lineWidth: line))
 
             // Корпус головы — цилиндр, завалённый носом вниз-вперёд. Он и есть
             // то, что вращается в вилке, поэтому линза сидит на его торце.
@@ -2392,10 +2293,13 @@ struct GlassStage {
             pieces.append(Solid3D.capsule(
                 from: (x, headY - stand * 0.006, back + stand * 0.006),
                 to: nose,
-                radius: stand * 0.019, material: metal, project: project, lineWidth: line))
+                radius: stand * 0.019, material: headBody, project: project, lineWidth: line))
             let eye = (nose.0, nose.1 + stand * 0.008, nose.2 - stand * 0.010)
+            // Линза чуть у́же торца корпуса: у прибора виден ободок, и именно
+            // по нему стекло отделяется от металла. Заподлицо с корпусом она
+            // читалась не линзой, а срезом трубы.
             pieces.append(Solid3D.faceDisc(
-                centre: eye, radius: stand * 0.019, material: lens, project: project,
+                centre: eye, radius: stand * 0.0155, material: lens, project: project,
                 lineWidth: line, dish: 0.30, squash: 0.72))
 
             let aim = aims[index]
