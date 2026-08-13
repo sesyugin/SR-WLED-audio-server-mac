@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="docs/icon.png" width="96" alt="">
+<img src="docs/icon.png" width="88" alt="">
 
 # Auralis
 
-**System audio spectrum onto [WLED](https://github.com/wled/WLED) LED strips**
+**Music plays on the Mac — the LED strip across the room repeats its spectrum.**
 
-Over the UDP audiosync v2 protocol. macOS 14.2+, no virtual audio driver required.
+No virtual audio driver. macOS 14.2+, strips running [WLED](https://github.com/wled/WLED).
 
-[Русский](README.md) · [Changelog](CHANGELOG.md) · [Origin and licences](NOTICE)
+[Русский](README.md) · [Download 0.3.0](https://github.com/sesyugin/SR-WLED-audio-server-mac/releases/latest) · [Changelog](CHANGELOG.md) · [Origin and licences](NOTICE)
 
 <img src="docs/screens/window.jpg" width="880" alt="The main window: the spectrum stage and the control panel">
 
@@ -16,136 +16,141 @@ Over the UDP audiosync v2 protocol. macOS 14.2+, no virtual audio driver require
 
 ---
 
-A macOS port of
-[SR-WLED-audio-server-win](https://github.com/Victoare/SR-WLED-audio-server-win),
-rewritten from scratch in Swift.
+## What it does
 
-> **Status:** working. An app with a window and a menu bar icon, a command line
-> version, Bonjour discovery of strips with a receive check, sixteen interface languages.
+The app listens to whatever is playing on the computer, splits the sound into 16
+frequency bands every 10 milliseconds and sends them over the network to the strip.
+A strip running WLED takes those 16 numbers and draws its own effects with them —
+the equaliser, flashes on the beat, running waves.
 
-**It repairs itself.** Switch output to AirPods, change the sample rate, let the Mac
-sleep — capture rebuilds itself and the packet stream does not break: the frame
-counter stays monotonic and the gap is about 100 ms against a 2.5 second signal-loss
-threshold. The sender deliberately survives the rebuild — restart the counter and
-WLED-MM will drop the packets.
+<img src="docs/diagram-chain.svg" width="100%" alt="Signal path: system audio, CoreAudio process tap, a 2048-sample window with a 512 hop, FFT, 16 bands from the firmware table, a 44-byte packet, the strip">
 
-**Diagnostics along four axes.** There are at least four reasons a strip stays dark,
-and a person cannot tell them apart: audio permission not granted, no address set,
-the device not in receive mode, the processing emitting zeroes. Each is checked
-separately, with advice on what to fix and a button to copy the report.
+Nothing gets installed underneath the system. The Windows version, and every
+workaround on the Mac, needs a virtual audio driver such as BlackHole: it stands in
+for the sound card so that something can listen in on the stream. Here the audio is
+read through the mechanism macOS itself provides — a **CoreAudio process tap** — and
+keeps going to the speakers exactly as before.
+
+## What it looks like
+
+The panel is needed twice: when setting up, and when working out why a strip is dark.
+The rest of the time it takes a third of the width away from the thing the window was
+opened for — so it hides, with the button under the stage or ⌘⌃S. After three seconds
+of stillness the chrome over the stage goes too; any pointer movement brings it back.
+
+<img src="docs/screens/watch-mode.jpg" width="880" alt="Watch mode: the panel is hidden and the stage fills the window">
+
+Four scenes and four palettes, and the column hue comes from a slider — from the
+palette or your own across the whole circle.
+
+<p align="center">
+  <img src="docs/screens/look-ice.jpg" width="290" alt="Ice palette">
+  <img src="docs/screens/look-violet.jpg" width="290" alt="Violet palette">
+  <img src="docs/screens/look-mono.jpg" width="290" alt="Mono palette">
+</p>
+
+**Sixteen languages** — in the app, in the command line version and in the system
+permission dialog. Arabic and Urdu with the layout mirrored.
+
+<img src="docs/screens/window-ru.jpg" width="880" alt="The same window in Russian">
+
+## When the strip stays dark
+
+There are four reasons a strip does not light up, and a person cannot tell them
+apart: audio recording permission was not granted; no address is set; the strip is
+not in receive mode; the processing is emitting zeroes. One general "not working"
+indicator is useless here — what is needed is an answer about what to fix.
+
+So each reason is checked separately, with its own verdict and its own advice, and
+the button beside them puts the whole report on the clipboard — in the interface
+language, so it can be sent to someone.
+
+<img src="docs/screens/diagnostics.jpg" width="880" alt="The diagnostics tab: four axes with verdicts">
 
 ## How it differs from the Windows version
 
-**No virtual audio driver.** System audio is read through the mechanism macOS
-provides — a CoreAudio process tap. BlackHole and Loopback are not needed, and the
-sound keeps going to the speakers as usual.
+This is not a line-by-line port: no C# was carried over, everything was written
+again in Swift. Along the way a few places turned up where the original did not do
+what it said on the label.
 
-**The strip looks more alive.** The values in the packet now mean what the label
-says, and the dynamics no longer fight themselves:
+### The values in the packet mean what they are called
 
-- **the loudness fields carry loudness.** The original put the ratio of the mid band
-  to the maximum band there: a 48 dB change in the signal moved the value by less
-  than 40 units out of 255. A dozen and a half effects feed on those fields;
-- **band edges taken from the firmware itself** (43–86 … 7106–9259 Hz). On a
-  logarithmic 40…10000 grid the three lowest bands got one FFT bin each — the bass
-  was interpolated from neighbours;
-- **a Hann window instead of FlatTop:** the latter has a main lobe four times wider,
-  so a single bass tone lit several bands at once;
-- **band smoothing** (25 ms up, 250 ms down) — the strip stops flickering where the
-  sound is not changing;
-- **the AGC no longer ducks on a beat.** The reference moves slowly and a loud band
-  simply hits the ceiling: neighbouring bands drop by 1.2 dB instead of 7.5;
-- **bands are folded by energy,** not by the loudest bin — the upper bands are no
-  longer inflated just because they are wider;
-- **10 ms of latency instead of 21,** from a 512-sample analysis hop.
+The firmware expects 44 bytes, and a specific quantity in every field. The original
+put **the ratio of the mid band to the loudest band** into the loudness fields — a
+quantity that barely moves whether the music is quiet or loud. A 48 dB change in the
+signal moved the value by less than 40 units out of 255 — and a dozen and a half WLED
+effects feed on those fields.
 
-A number of defects in the original are fixed too — ones that made some WLED effects
-behave differently from what their authors intended:
+<img src="docs/diagram-packet.svg" width="100%" alt="Packet layout: 6-byte header, pressure, sampleRaw, sampleSmth, peak, frame counter, 16 equaliser bands, zero crossings, magnitude, major peak">
 
-- **the frame counter no longer resets on silence.** WLED-MM accepts a packet only if
-  the counter has grown, so the original stopped driving the strip after the first pause;
-- **band values are clamped to 254.** WLED wraps anything above that, so a bright peak
-  turned into dim noise at the exact moment of the beat;
-- **the send rate is capped at 50 packets per second** — the limit named in the
-  WLED-MM documentation. Any faster and the firmware chokes;
-- **the strip is faded out on exit.** Neither vanilla nor MM clears the bands on its
-  own: closing the program used to leave the equaliser frozen until the strip was
-  power-cycled.
+Three more fields were computed in the wrong unit: sound pressure and the zero
+crossing count are now converted to the firmware's own units, and the frame counter
+no longer resets on silence — WLED-MM accepts a packet only if the counter has grown,
+so by resetting it the original stopped driving the strip after the very first pause.
 
-## Requirements
+### The bands come from the firmware itself
 
-- macOS 14.2 or newer (the CoreAudio process tap arrived in that version)
-- Command Line Tools for Xcode — the full Xcode is not needed
-- a WLED strip with Audio Reactive enabled in receive mode
+The original built its bands on a logarithmic grid from 40 to 10000 Hz. That sounds
+reasonable, but an FFT has a constant step in frequency — 23.4 Hz at a 48 kHz sample
+rate with a 2048-sample window. The three lowest bands of such a grid are narrower
+than that step, which means each gets a single FFT bin for the whole band; the bass
+had to be filled in by interpolating its neighbours.
 
-## Build and run
+<img src="docs/diagram-bands.svg" width="100%" alt="The firmware band table compared with a logarithmic 40–10000 Hz grid and with the FFT bin width">
 
-### The app
+The firmware's table solves this by being uneven: its lowest bands are wider than one
+bin, and its highest are far wider, because resolution is not needed up there. And
+above all: the GEQ, DJ Light, Blurz and Akemi effects were tuned by their authors
+against this exact table — each channel lights its own colour at its own point on the
+strip.
 
-```bash
-./scripts/build-app.sh
-open dist/Auralis.app
-cp -R dist/Auralis.app /Applications/
-```
+### The dynamics no longer fight themselves
 
-The icon appears both in the menu bar and in the Dock. The menu bar carries a live
-spectrum and a popover with status, packet counter and settings. The main window has
-the large visualisation and every parameter, laid out across four tabs: where to send,
-how it looks, why it is not working, how the app behaves.
+| What | Original | Here | What you see on the strip |
+|---|---|---|---|
+| Analysis window | FlatTop | **Hann** | FlatTop's main lobe is four times wider, so a single bass tone lit several bands at once |
+| Band smoothing | none | **25 ms up, 250 down** | the strip stops flickering where the sound is not changing |
+| Folding a band | loudest bin | **by energy** | upper bands are no longer inflated just because they are wider |
+| AGC on a beat | ducks | **hits the ceiling** | neighbouring bands drop by 1.2 dB instead of 7.5 |
+| Latency | 21 ms | **10 ms** | a 512-sample analysis hop instead of 1024 |
+| Band ceiling | 255 | **254** | WLED wraps anything above the limit: a bright peak turned into dim noise right on the beat |
+| Send rate | unbounded | **≤ 50/s** | any faster and the firmware chokes; the limit is named in the WLED-MM documentation |
+| On exit | strip freezes | **faded out** | neither vanilla nor MM clears the bands on its own |
 
-On first launch macOS asks for two permissions: recording system audio and local
-network access. From the second launch onwards the server starts by itself.
+Every difference can be switched off and judged by eye on the strip itself — a
+checkbox in the settings or a flag in the command line version.
 
-The bundle is ad-hoc signed by default, and macOS will then ask for audio permission
-again after every rebuild. To avoid that, make a self-signed code signing certificate
-in Keychain Access and point the script at it:
+<img src="docs/screens/settings.jpg" width="880" alt="The settings tab: audio processing parameters">
 
-```bash
-SRWLED_SIGN_IDENTITY="Certificate name" ./scripts/build-app.sh
-```
+## It repairs itself
 
-### If you downloaded the app instead of building it
+Switch output to AirPods, change the sample rate, let the Mac sleep — capture
+rebuilds itself. The packet stream does not break while it does: the frame counter
+stays monotonic and the gap is about 100 ms against a 2.5 second signal-loss
+threshold.
 
-The `.app` on the releases page is ad-hoc signed, without an Apple Developer
-certificate. macOS puts a quarantine flag on a downloaded file and refuses to open
-it, claiming the app is damaged. Remove the flag:
+The sender deliberately survives the rebuild. Restart the counter and WLED-MM will
+drop the packets as duplicates, leaving the strip frozen until it is power-cycled.
+
+## Installing
+
+Download the archive from the [releases page](https://github.com/sesyugin/SR-WLED-audio-server-mac/releases/latest),
+unpack it, move `Auralis.app` to Applications.
+
+The bundle is **ad-hoc signed**, without an Apple Developer certificate. macOS puts a
+quarantine flag on the download and refuses to open it, claiming the app is damaged.
+Remove the flag:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Auralis.app
 ```
 
-Or open it once via right click → **Open** and confirm in the dialog. This is not a
-way around the protection but the ordinary path for software without a paid developer
-signature: the sources are all here and anyone can build their own copy.
+Or open it once via right click → **Open** and confirm. This is not a way around the
+protection but the ordinary path for software without a paid developer signature: the
+sources are all here and anyone can build their own copy.
 
-### Command line version
-
-```bash
-swift build -c release
-
-# send to specific strips
-.build/release/srwled --targets 192.168.1.50,192.168.1.51
-
-# broadcast across the network
-.build/release/srwled --mode broadcast
-```
-
-On first launch macOS asks for permission to record system audio. If no dialog
-appeared, grant it by hand:
-**System Settings → Privacy & Security → Audio Recording**.
-
-All the options are in `srwled --help`; the version is `srwled --version`.
-It speaks the language of the system, the same sixteen as the app.
-
-### Comparing against the original
-
-Every processing fix can be switched off and judged by eye on the strip:
-
-```bash
-srwled --targets 192.168.1.50 --original          # exactly like the Windows version
-srwled --targets 192.168.1.50 --window flattop    # only the old window
-srwled --targets 192.168.1.50 --bands custom      # only the old band grid
-```
+On first launch macOS asks for two permissions: recording system audio and local
+network access.
 
 ## Setting up the strip
 
@@ -161,11 +166,43 @@ To check that the strip is receiving the stream:
 curl -s http://<strip-address>/json/info | grep -i "sound\|audio"
 ```
 
-With the server running, the reply should contain `v2` and `receiving`. The firmware
+With the server running, the reply will contain `v2` and `receiving`. The firmware
 sets the `v2` suffix only when a packet passed both of its checks — exactly 44 bytes
 and the right header. That single line proves the format is correct.
 
-## Tests
+## Building from source
+
+Command Line Tools for Xcode are enough; the full Xcode is not needed.
+
+```bash
+./scripts/build-app.sh
+open dist/Auralis.app
+```
+
+### Command line version
+
+```bash
+swift build -c release
+
+# send to specific strips
+.build/release/srwled --targets 192.168.1.50,192.168.1.51
+
+# broadcast across the network
+.build/release/srwled --mode broadcast
+```
+
+All the options are in `srwled --help`; the version is `srwled --version`. It speaks
+the language of the system, the same sixteen as the app.
+
+Comparing against the original:
+
+```bash
+srwled --targets 192.168.1.50 --original          # exactly like the Windows version
+srwled --targets 192.168.1.50 --window flattop    # only the old window
+srwled --targets 192.168.1.50 --bands custom      # only the old band grid
+```
+
+### Tests
 
 ```bash
 ./scripts/test.sh
@@ -175,63 +212,27 @@ No test touches an audio device or sends a packet to a real network — they run
 synthetic data and a stub transport. Xcode is not required: the project uses its own
 runner, since XCTest and swift-testing ship only with Xcode.
 
-## What it looks like
+### The pictures in this README
 
-The panel is needed twice: when setting up, and when working out why a strip is
-dark. The rest of the time it takes a third of the width away from the thing the
-window was opened for — so it hides, with the button under the stage or ⌘⌃S.
-After three seconds of stillness the chrome over the stage goes too; any pointer
-movement brings it back.
-
-<img src="docs/screens/watch-mode.jpg" width="880" alt="Watch mode: the panel is hidden and the stage fills the window">
-
-**Diagnostics along four axes.** Not one "not working" indicator but four
-independent ones: audio, processing, sending, the strips themselves. Each carries
-its own verdict and its own advice, and the button beside them puts the whole
-report on the clipboard — in the interface language.
-
-<img src="docs/screens/diagnostics.jpg" width="880" alt="The diagnostics tab: four axes with verdicts">
-
-**The processing is exposed.** Every difference from the Windows version is its
-own switch, and one checkbox brings the original behaviour back entirely. The
-difference can be judged by eye, on the strip itself.
-
-<img src="docs/screens/settings.jpg" width="880" alt="The settings tab: audio processing parameters">
-
-**Four scenes and four palettes,** and the column hue can also be taken from a
-slider — from the palette or your own across the whole circle.
-
-<p align="center">
-  <img src="docs/screens/look-ice.jpg" width="290" alt="Ice palette">
-  <img src="docs/screens/look-violet.jpg" width="290" alt="Violet palette">
-  <img src="docs/screens/look-mono.jpg" width="290" alt="Mono palette">
-</p>
-
-**Sixteen languages,** Arabic and Urdu included, with the layout mirrored. The
-system permission dialog is translated too — it is shown before the language
-inside the app can be chosen at all.
-
-<img src="docs/screens/window-ru.jpg" width="880" alt="The same window in Russian">
-
-Scene frames and the app mark can be drawn without launching anything, by the
-same code that draws the window:
+The diagrams are drawn by code rather than by hand: a hand-drawn picture drifts away
+from the code silently. The band table in the diagram is read straight out of
+`Bucketizer.swift`.
 
 ```bash
-SRWLED_OUT=docs swift run -c release SRWLEDPreview
+python3 scripts/make-diagrams.py                     # diagrams into docs/
+SRWLED_OUT=docs swift run -c release SRWLEDPreview   # scene frames and the mark
 ```
 
-## Cutting a release
+### Cutting a release
 
 ```bash
 SRWLED_ARCHIVE=1 ./scripts/build-app.sh
 ```
 
-Puts `dist/SR-WLED-Server-Auralis-macos-<version>.zip` next to the bundle — the
-archive for the releases page. Only the archive carries the long name, so that search
-finds it next to the original Windows version; the app itself is named short.
-
-The version lives in one place, `Sources/SRWLEDCore/Version.swift`; the build script
-reads it from there and the command line version prints it with `--version`.
+Puts `dist/SR-WLED-Server-Auralis-macos-<version>.zip` next to the bundle. Only the
+archive carries the long name, so that search finds it next to the original Windows
+version; the app itself is named short. The version lives in one place,
+`Sources/SRWLEDCore/Version.swift`.
 
 ## Privacy
 
@@ -241,11 +242,10 @@ cannot be reconstructed from them.
 
 ## Licence
 
-<img src="docs/screens/about.jpg" width="520" alt="The About window">
-
-
-Copyright © 2026 Zakhar Sesyugin. GPL-3.0, inherited from the original project.
-See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Copyright © 2026 Zakhar Sesyugin. GPL-3.0, inherited from the original project
+[SR-WLED-audio-server-win](https://github.com/Victoare/SR-WLED-audio-server-win),
+whose behaviour is reproduced here. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 Auralis is not affiliated with the WLED project, is not its official application and
-is not endorsed by its authors. The WLED name is mentioned only to state compatibility.
+is not endorsed by its authors. The WLED name is mentioned only to state
+compatibility.
