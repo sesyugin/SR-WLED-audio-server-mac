@@ -27,7 +27,7 @@ the equaliser, flashes on the beat, running waves.
 
 Nothing gets installed underneath the system. The Windows version, and every
 workaround on the Mac, needs a virtual audio driver such as BlackHole: it stands in
-for the sound card so that something can listen in on the stream. Here the audio is
+for the sound card so that the stream can be read from outside. Here the audio is
 read through the mechanism macOS itself provides — a **CoreAudio process tap** — and
 keeps going to the speakers exactly as before.
 
@@ -54,7 +54,7 @@ permission dialog. Arabic and Urdu with the layout mirrored.
 
 <img src="docs/screens/window-ru.jpg" width="880" alt="The same window in Russian">
 
-## When the strip stays dark
+## Diagnostics
 
 There are four reasons a strip does not light up, and a person cannot tell them
 apart: audio recording permission was not granted; no address is set; the strip is
@@ -70,10 +70,10 @@ language, so it can be sent to someone.
 ## How it differs from the Windows version
 
 This is not a line-by-line port: no C# was carried over, everything was written
-again in Swift. Along the way a few places turned up where the original did not do
-what it said on the label.
+again in Swift. Along the way a few places turned up where the original disagrees with
+what the firmware expects.
 
-### The values in the packet mean what they are called
+### Packet fields
 
 The firmware expects 44 bytes, and a specific quantity in every field. The original
 put **the ratio of the mid band to the loudest band** into the loudness fields — a
@@ -88,10 +88,10 @@ crossing count are now converted to the firmware's own units, and the frame coun
 no longer resets on silence — WLED-MM accepts a packet only if the counter has grown,
 so by resetting it the original stopped driving the strip after the very first pause.
 
-### The bands come from the firmware itself
+### The band table
 
-The original built its bands on a logarithmic grid from 40 to 10000 Hz. That sounds
-reasonable, but an FFT has a constant step in frequency — 23.4 Hz at a 48 kHz sample
+The original built its bands on a logarithmic grid from 40 to 10000 Hz. An FFT,
+meanwhile, has a constant step in frequency — 23.4 Hz at a 48 kHz sample
 rate with a 2048-sample window. The three lowest bands of such a grid are narrower
 than that step, which means each gets a single FFT bin for the whole band; the bass
 had to be filled in by interpolating its neighbours.
@@ -99,12 +99,12 @@ had to be filled in by interpolating its neighbours.
 <img src="docs/diagram-bands.svg" width="100%" alt="The firmware band table compared with a logarithmic 40–10000 Hz grid and with the FFT bin width">
 
 The firmware's table solves this by being uneven: its lowest bands are wider than one
-bin, and its highest are far wider, because resolution is not needed up there. And
-above all: the GEQ, DJ Light, Blurz and Akemi effects were tuned by their authors
-against this exact table — each channel lights its own colour at its own point on the
+bin, and its highest are far wider, because resolution is not needed up there. Beyond
+that, the GEQ, DJ Light, Blurz and Akemi effects were tuned by their authors against
+this exact table — each channel lights its own colour at its own point on the
 strip.
 
-### The dynamics no longer fight themselves
+### Signal processing
 
 | What | Original | Here | What you see on the strip |
 |---|---|---|---|
@@ -122,15 +122,16 @@ checkbox in the settings or a flag in the command line version.
 
 <img src="docs/screens/settings.jpg" width="880" alt="The settings tab: audio processing parameters">
 
-## It repairs itself
+## Capture rebuilds
 
 Switch output to AirPods, change the sample rate, let the Mac sleep — capture
 rebuilds itself. The packet stream does not break while it does: the frame counter
 stays monotonic and the gap is about 100 ms against a 2.5 second signal-loss
 threshold.
 
-The sender deliberately survives the rebuild. Restart the counter and WLED-MM will
-drop the packets as duplicates, leaving the strip frozen until it is power-cycled.
+The sender is not recreated during a rebuild, and that is deliberate: the frame
+counter belongs to it. Restarting the counter means being refused by WLED-MM, which
+treats packets whose counter went backwards as duplicates and drops them.
 
 ## Installing
 
@@ -212,7 +213,7 @@ No test touches an audio device or sends a packet to a real network — they run
 synthetic data and a stub transport. Xcode is not required: the project uses its own
 runner, since XCTest and swift-testing ship only with Xcode.
 
-### The pictures in this README
+### Diagrams and screenshots
 
 The diagrams are drawn by code rather than by hand: a hand-drawn picture drifts away
 from the code silently. The band table in the diagram is read straight out of

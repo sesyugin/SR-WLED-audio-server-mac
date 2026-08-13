@@ -124,7 +124,7 @@ def diagram_bands():
 
     W, H = 1240, 430
     parts = [card(W, H)]
-    parts.append(text(36, 46, "Почему полосы взяты из прошивки, а не из логарифма",
+    parts.append(text(36, 46, "Таблица полос прошивки и логарифмическая сетка",
                       17, TEXT, "600"))
     parts.append(text(36, 70,
                       "Эффекты WLED рисовались под эту таблицу: каждый канал светит "
@@ -207,7 +207,7 @@ def diagram_bands():
 def diagram_packet():
     W, H = 1240, 330
     parts = [card(W, H)]
-    parts.append(text(36, 46, "Что уходит в сеть: 44 байта", 17, TEXT, "600"))
+    parts.append(text(36, 46, "Пакет audiosync v2 — 44 байта", 17, TEXT, "600"))
     parts.append(text(36, 70,
                       "Формат задан прошивкой: размер и заголовок она проверяет, "
                       "и только тогда отвечает «v2»", 13, MUTED))
